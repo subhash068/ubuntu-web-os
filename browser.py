@@ -14,7 +14,7 @@ def handle_proxy_request(handler, target_url, method='GET'):
         # Forward important headers
         headers = {}
         for key in handler.headers:
-            if key.lower() not in ['host', 'connection', 'content-length']:
+            if key.lower() not in ['host', 'connection', 'content-length', 'accept-encoding']:
                 headers[key] = handler.headers[key]
                 
         # Fallback User-Agent if none provided

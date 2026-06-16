@@ -1360,41 +1360,68 @@ async function sendTerminalCommand(command) {
     // Wrap command to execute in current PWD, then print a delimiter and the new PWD
     const delimiter = "___PWD_END___";
     const execPwd = terminalPwd === '~' || terminalPwd.startsWith('~/') ? terminalPwd.replace('~', '/root') : terminalPwd;
-    const wrappedCommand = `cd "${execPwd}" && ${command}; echo "${delimiter}"; pwd`;
+    const wrappedCommand = `cd "${execPwd}" && eval '${command.replace(/'/g, "'\\''")}'\necho "${delimiter}"\npwd`;
 
     try {
-        const data = await apiCommand('run_raw', { command: wrappedCommand });
-        let stdout = data?.stdout || '';
+        const response = await fetch(`${BACKEND_URL}/api/command_stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            credentials: 'include',
+            body: JSON.stringify({ op: 'run_raw', args: { command: wrappedCommand } })
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data?.error || 'Request failed');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let done = false;
+        let buffer = '';
+        let foundDelimiter = false;
+        let newPwd = '';
         
-        // Extract the new PWD from the end of stdout
-        const lines = stdout.trim().split('\n');
-        const delimiterIdx = lines.lastIndexOf(delimiter);
-        if (delimiterIdx !== -1 && delimiterIdx + 1 < lines.length) {
-            let newPwd = lines[delimiterIdx + 1].trim();
+        while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            if (value) {
+                buffer += decoder.decode(value, { stream: !done });
+                let lines = buffer.split('\n');
+                buffer = lines.pop();
+                
+                for (let line of lines) {
+                    if (line.includes(delimiter)) {
+                        foundDelimiter = true;
+                    } else if (foundDelimiter) {
+                        newPwd = line.trim();
+                    } else {
+                        printOutput(line);
+                    }
+                }
+            }
+        }
+        
+        if (buffer) {
+             if (buffer.includes(delimiter)) {
+                 foundDelimiter = true;
+             } else if (foundDelimiter) {
+                 newPwd = buffer.trim();
+             } else {
+                 printOutput(buffer);
+             }
+        }
+        
+        if (newPwd) {
             if (newPwd.startsWith('/root')) {
                 newPwd = newPwd.replace('/root', '~');
             }
             terminalPwd = newPwd;
-            // Remove the delimiter and pwd from the output
-            stdout = lines.slice(0, delimiterIdx).join('\n');
         }
 
-        if (stdout.trim()) {
-            printOutput(stdout);
-            if (data.truncated_stdout) {
-                printOutput('[Output truncated due to size limit]', 'system-msg');
-            }
-        }
-        if (data && data.stderr) {
-            printOutput(data.stderr, 'stderr-msg');
-            if (data.truncated_stderr) {
-                printOutput('[Error output truncated due to size limit]', 'stderr-msg');
-            }
-        }
-        if (!stdout.trim() && !data.stderr) {
-            // printOutput('[Command executed with no output]', 'system-msg'); // Removed for a cleaner terminal
-        }
-        
         // Update the visual prompt for the next input
         const promptLabel = document.getElementById('prompt-label');
         if (promptLabel) {
@@ -1515,6 +1542,9 @@ function showContextMenu(e, filename, isDir) {
     const openItem = document.getElementById('ctx-open');
     const downloadItem = document.getElementById('ctx-download');
     const compressItem = document.getElementById('ctx-compress');
+    const runServerItem = document.getElementById('ctx-run-server');
+    
+    if (runServerItem) runServerItem.style.display = 'flex';
     
     if (isDir) {
         if (openItem) openItem.style.display = 'none';
@@ -1696,6 +1726,45 @@ window.onload = async () => {
             } catch (err) {
                 alert('Compression failed: ' + err.message);
             }
+        };
+    }
+    const ctxRunServer = document.getElementById('ctx-run-server');
+    if (ctxRunServer) {
+        ctxRunServer.onclick = async () => {
+            hideContextMenu();
+            
+            let targetDir = currentPath;
+            if (currentContextMenuFile && currentContextMenuIsDir) {
+                targetDir = currentPath.replace(/\/$/, '') + '/' + currentContextMenuFile;
+            }
+            
+            const port = prompt(`Enter Port number for the server:`, "8085");
+            if (!port) return;
+            const parsedPort = parseInt(port, 10);
+            if (isNaN(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
+                alert("Please enter a valid port between 1024 and 65535.");
+                return;
+            }
+            
+            const customCmd = prompt(
+                `Enter startup command (optional):\n\nLeave empty to run standard python static server:\npython3 -m http.server ${parsedPort}`,
+                ""
+            );
+            if (customCmd === null) return;
+            
+            let runCmd = '';
+            if (customCmd.trim() !== '') {
+                runCmd = customCmd.trim();
+            } else {
+                runCmd = `python3 -m http.server ${parsedPort}`;
+            }
+            
+            openWindow('terminal');
+            
+            const execPath = targetDir === '~' || targetDir.startsWith('~/') ? targetDir.replace('~', '/root') : targetDir;
+            const command = `cd "${execPath}" && trap 'kill $(jobs -p) 2>/dev/null' EXIT; ${runCmd} & sleep 1.5; ssh -o StrictHostKeyChecking=no -R 80:localhost:${parsedPort} localhost.run`;
+            
+            sendTerminalCommand(command);
         };
     }
     const ctxProperties = document.getElementById('ctx-properties');

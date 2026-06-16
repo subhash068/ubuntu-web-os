@@ -9,3 +9,16 @@ cd D:\ubuntu-web-os
 
 # 2. Start the Python server
 python server.py
+
+
+
+
+
+
+
+
+
+wsl -d Ubuntu-24.04 -e sudo apt-get install -y linux-headers-generic build-essential
+
+
+

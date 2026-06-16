@@ -390,6 +390,7 @@ def execute_allowed(op: str, args: dict):
         command = args.get('command')
         if not command:
             raise ValueError('Missing command')
+        command = f"export DEBIAN_FRONTEND=noninteractive; {command}"
         argv = ['bash', '-c', command]
         timeout_sec = 30
     elif op == 'mv':
@@ -854,6 +855,72 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
                 _json_response(self, 408, {'stdout': '', 'stderr': 'Error: command timed out', 'exit_code': -1})
             except Exception as e:
                 _json_response(self, 500, {'stdout': '', 'stderr': f'Error: {str(e)}', 'exit_code': -2})
+            return
+
+        # Command Stream endpoint
+        if self.path == '/api/command_stream':
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': data.get('__error__', 'Invalid payload') if isinstance(data, dict) else 'Invalid payload'})
+                return
+
+            # Rate limit
+            if _rate_limited(self):
+                _json_response(self, 429, {'error': 'Rate limit exceeded'})
+                return
+
+            op = data.get('op', '')
+            args = data.get('args', {})
+            if op != 'run_raw':
+                _json_response(self, 400, {'error': 'Only run_raw supported for streaming'})
+                return
+
+            command = args.get('command')
+            if not command:
+                _json_response(self, 400, {'error': 'Missing command'})
+                return
+
+            command = f"export DEBIAN_FRONTEND=noninteractive; {command}"
+            argv = ['bash', '-c', command]
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+
+            proc = None
+            try:
+                proc = subprocess.Popen(
+                    ['wsl', '-d', 'Ubuntu-24.04', '-u', 'root', '--cd', '~'] + argv,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1 # Line buffered
+                )
+                for line in iter(proc.stdout.readline, ''):
+                    self.wfile.write(line.encode('utf-8'))
+                    self.wfile.flush()
+            except Exception as e:
+                if proc and proc.poll() is None:
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=2)
+                    except:
+                        try:
+                            proc.kill()
+                        except:
+                            pass
+            finally:
+                if proc:
+                    try:
+                        proc.stdout.close()
+                    except:
+                        pass
+                    try:
+                        proc.wait()
+                    except:
+                        pass
             return
 
         # Legacy endpoint disabled for security

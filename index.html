@@ -9,11 +9,11 @@
     <link rel="stylesheet" href="index.css?v=2">
     <!-- FontAwesome for Premium Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Monaco Editor Loader -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
-    <!-- Math.js and Plotly.js for Calculator -->
+    <!-- Math.js and Plotly.js for Calculator (Load BEFORE Monaco AMD loader) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 </head>
 <body id="desktop-body">
     <!-- Main Desktop Environment Workspace -->
@@ -1291,6 +1291,7 @@
         <div class="context-menu-item" id="ctx-download"><i class="fa-solid fa-download"></i> Download</div>
         <div class="context-menu-item" id="ctx-rename"><i class="fa-solid fa-pen"></i> Rename / Move</div>
         <div class="context-menu-item" id="ctx-compress"><i class="fa-solid fa-file-zipper"></i> Compress (.tar.gz)</div>
+        <div class="context-menu-item" id="ctx-run-server"><i class="fa-solid fa-globe"></i> Run Server w/ Domain</div>
         <div class="context-menu-item" id="ctx-properties"><i class="fa-solid fa-circle-info"></i> Properties</div>
         <div class="context-menu-item text-danger" id="ctx-delete"><i class="fa-solid fa-trash-can"></i> Delete</div>
     </div>

@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "---STATS---"
-# CPU Load
-top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}'
+# CPU Load (Using /proc/loadavg instead of top which hangs in WSL)
+awk '{print $1 * 10}' /proc/loadavg
 # RAM Usage (Used, Total)
 free -m | awk '/Mem:/ {print $3,$2}'
 # Disk Usage (Used, Total, Percentage)

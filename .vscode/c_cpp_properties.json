@@ -1,0 +1,31 @@
+{
+  "configurations": [
+    {
+      "name": "windows-gcc-x64",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "\\\\wsl$\\Ubuntu-24.04\\usr\\include",
+        "\\\\wsl.localhost\\Ubuntu-24.04\\usr\\include",
+        "\\\\wsl$\\Ubuntu-24.04\\usr\\include\\x86_64-linux-gnu",
+        "\\\\wsl.localhost\\Ubuntu-24.04\\usr\\include\\x86_64-linux-gnu",
+        "\\\\wsl.localhost\\Ubuntu-24.04\\usr\\src\\linux-headers-*\\include",
+        "\\\\wsl.localhost\\Ubuntu-24.04\\usr\\src\\linux-headers-*\\arch\\x86\\include",
+        "\\\\wsl$\\Ubuntu-24.04\\usr\\src\\linux-headers-*\\include",
+        "\\\\wsl$\\Ubuntu-24.04\\usr\\src\\linux-headers-*\\arch\\x86\\include"
+      ],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE",
+        "__KERNEL__",
+        "MODULE",
+        "KBUILD_MODNAME=\"\\\"webos_module\\\"\""
+      ],
+      "compilerPath": "gcc",
+      "cStandard": "c11",
+      "cppStandard": "gnu++14",
+      "intelliSenseMode": "linux-gcc-x64"
+    }
+  ],
+  "version": 4
+}
