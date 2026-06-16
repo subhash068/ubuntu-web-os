@@ -258,7 +258,8 @@ const windows = {
     browser: { active: false, min: false, max: false, x: 120, y: 120, w: 700, h: 500, icon: 'fa-globe', name: 'Browser' },
     translator: { active: false, min: false, max: false, x: 200, y: 100, w: 780, h: 520, icon: 'fa-language', name: 'Translator' },
     video: { active: false, min: false, max: false, x: 250, y: 150, w: 640, h: 440, icon: 'fa-film', name: 'Video Player' },
-    music: { active: false, min: false, max: false, x: 300, y: 200, w: 400, h: 500, icon: 'fa-music', name: 'Music Player' }
+    music: { active: false, min: false, max: false, x: 300, y: 200, w: 400, h: 500, icon: 'fa-music', name: 'Music Player' },
+    tunnels: { active: false, min: false, max: false, x: 180, y: 180, w: 640, h: 400, icon: 'fa-globe', name: 'Active Tunnels' }
 };
 
 let highestZ = 100;
@@ -299,6 +300,8 @@ function openWindow(winId) {
         refreshDeployOverview();
     } else if (winId === 'browser') {
         initBrowserIframe();
+    } else if (winId === 'tunnels') {
+        refreshTunnels();
     }
 }
 
@@ -1436,6 +1439,8 @@ async function sendTerminalCommand(command) {
 
 function printOutput(text, className = '') {
     const div = document.createElement('div');
+    div.style.whiteSpace = 'pre-wrap';
+    div.style.wordBreak = 'break-all';
     if (className) {
         div.className = className;
     }
@@ -1457,7 +1462,19 @@ function printOutput(text, className = '') {
             else if (code == '34') style += 'color: #3b82f6; ';
             else if (code == '35') style += 'color: #a855f7; ';
             else if (code == '36') style += 'color: #06b6d4; ';
+            else if (code == '37') style += 'color: #e5e5e5; ';
+            else if (code == '30') style += 'color: #1a1a2e; ';
             else if (code == '1') style += 'font-weight: bold; ';
+            else if (code == '7') style += 'background: #e5e5e5; color: #1a1a2e; ';
+            else if (code == '27') style += 'background: transparent; color: inherit; ';
+            else if (code == '40') style += 'background: #1a1a2e; ';
+            else if (code == '41') style += 'background: #ef4444; ';
+            else if (code == '42') style += 'background: #22c55e; ';
+            else if (code == '43') style += 'background: #eab308; ';
+            else if (code == '44') style += 'background: #3b82f6; ';
+            else if (code == '45') style += 'background: #a855f7; ';
+            else if (code == '46') style += 'background: #06b6d4; ';
+            else if (code == '47') style += 'background: #e5e5e5; ';
         }
         return style ? `<span style="${style}">` : '<span>';
     });
@@ -1752,6 +1769,12 @@ window.onload = async () => {
             );
             if (customCmd === null) return;
             
+            const subdomain = prompt(
+                `Enter custom subdomain (optional):\n\nExample: "myapp" → https://myapp.localhost.run\n\nLeave empty for a random domain.`,
+                ""
+            );
+            if (subdomain === null) return;
+            
             let runCmd = '';
             if (customCmd.trim() !== '') {
                 runCmd = customCmd.trim();
@@ -1762,7 +1785,16 @@ window.onload = async () => {
             openWindow('terminal');
             
             const execPath = targetDir === '~' || targetDir.startsWith('~/') ? targetDir.replace('~', '/root') : targetDir;
-            const command = `cd "${execPath}" && trap 'kill $(jobs -p) 2>/dev/null' EXIT; ${runCmd} & sleep 1.5; ssh -o StrictHostKeyChecking=no -R 80:localhost:${parsedPort} localhost.run`;
+            
+            let tunnelArg = '';
+            if (subdomain.trim() !== '') {
+                const cleanSub = subdomain.trim().replace(/[^a-zA-Z0-9-]/g, '');
+                tunnelArg = `-R ${cleanSub}:80:localhost:${parsedPort}`;
+            } else {
+                tunnelArg = `-R 80:localhost:${parsedPort}`;
+            }
+            
+            const command = `cd "${execPath}" && trap 'kill $(jobs -p) 2>/dev/null' EXIT; ${runCmd} & sleep 1.5; ssh -o StrictHostKeyChecking=no ${tunnelArg} localhost.run`;
             
             sendTerminalCommand(command);
         };
@@ -1796,6 +1828,154 @@ window.onload = async () => {
     // Show login modal to gate application load
     showLoginModal();
 };
+
+// ================= Active Tunnels Logic =================
+async function refreshTunnels() {
+    const listBody = document.getElementById('tunnels-list-body');
+    if (!listBody) return;
+    
+    listBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> Scanning active tunnels...</td></tr>';
+    
+    try {
+        const data = await apiCommand('ps_aux', {});
+        if (data.stderr) {
+            listBody.innerHTML = `<tr><td colspan="4" style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</td></tr>`;
+            return;
+        }
+        
+        const lines = (data.stdout || '').trim().split('\n');
+        
+        const sshTunnels = [];
+        const serverProcesses = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const tokens = line.split(/\s+/);
+            if (tokens.length >= 11) {
+                const pid = tokens[1];
+                const cmd = tokens.slice(10).join(' ');
+                
+                // Match ssh tunnels
+                if (cmd.includes('ssh ') && (cmd.includes('localhost.run') || cmd.includes('serveo.net')) && cmd.includes('-R')) {
+                    const portMatch = cmd.match(/-R\s+\d+:localhost:(\d+)/) || cmd.match(/-R\s+:?(\d+):localhost/) || cmd.match(/:(\d+)\s+localhost\.run/);
+                    const port = portMatch ? portMatch[1] : 'Unknown';
+                    
+                    sshTunnels.push({
+                        pid: pid,
+                        command: cmd,
+                        port: port
+                    });
+                } else if (cmd.includes('python3 -m http.server') || cmd.includes('python3 server.py') || cmd.includes('node ') || cmd.includes('npm ')) {
+                    const portMatch = cmd.match(/\b\d{4,5}\b/);
+                    const port = portMatch ? portMatch[0] : null;
+                    
+                    serverProcesses.push({
+                        pid: pid,
+                        command: cmd,
+                        port: port
+                    });
+                }
+            }
+        }
+        
+        const activeTunnels = [];
+        const termBody = document.getElementById('terminal-body');
+        const termText = termBody ? termBody.innerText : '';
+        
+        sshTunnels.forEach(tunnel => {
+            const matchingServer = serverProcesses.find(s => s.port === tunnel.port);
+            
+            let tunnelUrl = 'Connecting...';
+            // Parse terminal logs for localhost.run or serveo.net tunnel urls
+            const urlRegex = new RegExp(`https://[a-zA-Z0-9.-]+\\.(?:lhr\\.life|serveo\\.net|localhost\\.run)`, 'gi');
+            const foundUrls = termText.match(urlRegex) || [];
+            if (foundUrls.length > 0) {
+                tunnelUrl = foundUrls[foundUrls.length - 1];
+            }
+            
+            activeTunnels.push({
+                port: tunnel.port,
+                serverCmd: matchingServer ? matchingServer.command : 'External Server / Unknown',
+                serverPid: matchingServer ? matchingServer.pid : null,
+                tunnelPid: tunnel.pid,
+                tunnelCmd: tunnel.command,
+                url: tunnelUrl
+            });
+        });
+        
+        if (activeTunnels.length === 0) {
+            listBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2.5rem; color: var(--text-secondary);"><i class="fa-solid fa-circle-info" style="font-size: 1.2rem; margin-bottom: 0.5rem; display: block; color: var(--accent-orange);"></i>No active tunnels found.<br><span style="font-size: 0.8rem;">Right-click a folder in the Files app to run a server and expose it!</span></td></tr>';
+            return;
+        }
+        
+        listBody.innerHTML = '';
+        activeTunnels.forEach(t => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+            
+            const tdServer = document.createElement('td');
+            tdServer.style.padding = '0.8rem';
+            tdServer.innerHTML = `<span style="font-weight: 600; color: #fff; font-family: var(--font-mono); font-size: 0.8rem;">${t.serverCmd}</span>${t.serverPid ? `<br><span style="font-size: 0.75rem; color: var(--text-secondary);">PID: ${t.serverPid}</span>` : ''}`;
+            row.appendChild(tdServer);
+            
+            const tdPort = document.createElement('td');
+            tdPort.style.padding = '0.8rem';
+            tdPort.innerHTML = `<span class="badge" style="background: rgba(255, 165, 0, 0.15); color: var(--accent-orange); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-family: var(--font-mono);">${t.port}</span>`;
+            row.appendChild(tdPort);
+            
+            const tdUrl = document.createElement('td');
+            tdUrl.style.padding = '0.8rem';
+            if (t.url !== 'Connecting...') {
+                tdUrl.innerHTML = `<a href="${t.url}" target="_blank" style="color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono);"><i class="fa-solid fa-square-arrow-up-right"></i> ${t.url}</a>`;
+            } else {
+                tdUrl.innerHTML = `<span style="color: var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> ${t.url}</span>`;
+            }
+            row.appendChild(tdUrl);
+            
+            const tdAction = document.createElement('td');
+            tdAction.style.padding = '0.8rem';
+            tdAction.style.textAlign = 'right';
+            const stopBtn = document.createElement('button');
+            stopBtn.className = 'fm-btn';
+            stopBtn.style.background = '#ef4444';
+            stopBtn.style.color = '#fff';
+            stopBtn.style.padding = '0.35rem 0.8rem';
+            stopBtn.style.border = 'none';
+            stopBtn.style.borderRadius = '6px';
+            stopBtn.style.cursor = 'pointer';
+            stopBtn.style.fontSize = '0.75rem';
+            stopBtn.style.fontWeight = '600';
+            stopBtn.innerHTML = '<i class="fa-solid fa-circle-stop"></i> Stop';
+            stopBtn.onclick = () => stopTunnel(t.serverPid, t.tunnelPid);
+            tdAction.appendChild(stopBtn);
+            row.appendChild(tdAction);
+            
+            listBody.appendChild(row);
+        });
+    } catch (e) {
+        listBody.innerHTML = `<tr><td colspan="4" style="color: #ef4444; text-align: center; padding: 1rem;">Connection Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function stopTunnel(serverPid, tunnelPid) {
+    if (!confirm('Are you sure you want to stop this tunnel and kill the server?')) return;
+    
+    showToast('Stopping tunnel...');
+    try {
+        if (tunnelPid) {
+            await apiCommand('kill', { pid: tunnelPid });
+        }
+        if (serverPid) {
+            await apiCommand('kill', { pid: serverPid });
+        }
+        showToast('Tunnel stopped successfully!');
+        setTimeout(refreshTunnels, 1000);
+    } catch (err) {
+        alert('Failed to stop tunnel: ' + err.message);
+    }
+}
 
 // ================= App Store / Package Manager Logic =================
 const storeList = document.getElementById('store-list');
