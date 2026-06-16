@@ -1,0 +1,11 @@
+username: kali
+password: kali
+
+wsl -l -v
+wsl -d Ubuntu-24.04 -u root whoami
+
+# 1. Navigate to the project directory on your D: drive
+cd D:\ubuntu-web-os
+
+# 2. Start the Python server
+python server.py

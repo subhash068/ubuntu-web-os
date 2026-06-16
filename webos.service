@@ -1,0 +1,25 @@
+[Unit]
+Description=Ubuntu Web OS Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/ubuntu-web-os
+ExecStart=/usr/bin/python3 server.py
+Restart=on-failure
+RestartSec=5s
+
+# Environment settings
+Environment=OS_WEBOS_SESSION_SECRET=prod-secret-session-key-change-me
+Environment=OS_WEBOS_USER=admin
+Environment=OS_WEBOS_PASS=admin
+Environment=PORT=9500
+
+# Security Sandbox (systemd hardening)
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

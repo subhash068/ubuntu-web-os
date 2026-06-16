@@ -1,0 +1,972 @@
+// System State Elements
+const termInput = document.getElementById('term-input');
+const termBody = document.getElementById('terminal-body');
+const noteArea = document.getElementById('note-area');
+const toast = document.getElementById('toast');
+const connBadge = document.getElementById('conn-badge');
+const connDot = document.getElementById('conn-dot');
+const connText = document.getElementById('conn-text');
+
+// System Stats Elements
+const cpuVal = document.getElementById('cpu-val');
+const cpuBar = document.getElementById('cpu-bar');
+const ramVal = document.getElementById('ram-val');
+const ramBar = document.getElementById('ram-bar');
+const diskVal = document.getElementById('disk-val');
+const diskBar = document.getElementById('disk-bar');
+
+// File Manager Elements
+const currentDirLabel = document.getElementById('current-dir');
+const fileListContainer = document.getElementById('file-list');
+const editorModal = document.getElementById('editor-modal');
+const modalFilename = document.getElementById('modal-filename');
+const editorContent = document.getElementById('editor-content');
+
+// Task Manager Elements
+const taskListBody = document.getElementById('task-list-body');
+const taskSearch = document.getElementById('task-search');
+
+// Clock and Latency
+const systemClock = document.getElementById('system-clock');
+const latencyVal = document.getElementById('latency-val');
+
+// Start Menu Elements
+const startMenuTrigger = document.getElementById('start-menu-trigger');
+const startMenu = document.getElementById('start-menu');
+const startSearch = document.getElementById('start-search');
+
+const BACKEND_URL = 'http://localhost:9500';
+
+let currentPath = '/root';
+let currentlyEditingFile = '';
+let runningProcesses = []; // Cached processes for fast local filtering
+
+// ================= Window Manager State & Logic =================
+const windows = {
+    terminal: { active: true, min: false, max: false, x: 80, y: 80, w: 620, h: 420, icon: 'fa-terminal', name: 'Terminal' },
+    files: { active: false, min: false, max: false, x: 450, y: 100, w: 550, h: 420, icon: 'fa-folder-open', name: 'Files' },
+    monitor: { active: false, min: false, max: false, x: 150, y: 250, w: 480, h: 350, icon: 'fa-chart-line', name: 'Monitor' },
+    tasks: { active: false, min: false, max: false, x: 300, y: 180, w: 680, h: 450, icon: 'fa-list-check', name: 'Tasks' },
+    notes: { active: false, min: false, max: false, x: 800, y: 120, w: 450, h: 350, icon: 'fa-pen-to-square', name: 'Notepad' },
+    settings: { active: false, min: false, max: false, x: 550, y: 200, w: 450, h: 380, icon: 'fa-gears', name: 'Settings' },
+    store: { active: false, min: false, max: false, x: 350, y: 150, w: 640, h: 450, icon: 'fa-shop', name: 'App Store' }
+};
+
+let highestZ = 100;
+let activeDrag = null;
+let dragStartX = 0, dragStartY = 0;
+let resizeStartW = 0, resizeStartH = 0;
+
+// Focus window depth (bring to front)
+function focusWindow(winId) {
+    const win = windows[winId];
+    if (!win || !win.active) return;
+    
+    highestZ++;
+    const winEl = document.getElementById(`win-${winId}`);
+    winEl.style.zIndex = highestZ;
+    
+    document.querySelectorAll('.window').forEach(el => el.classList.remove('active-focus'));
+    winEl.classList.add('active-focus');
+    
+    updateTaskbarBadges();
+}
+
+// Open window (launch or restore)
+function openWindow(winId) {
+    const win = windows[winId];
+    const winEl = document.getElementById(`win-${winId}`);
+    
+    win.active = true;
+    win.min = false;
+    winEl.style.display = 'flex';
+    winEl.classList.remove('minimized');
+    
+    focusWindow(winId);
+
+    if (winId === 'tasks') {
+        refreshProcesses();
+    }
+}
+
+// Minimize window
+function minimizeWindow(winId) {
+    const win = windows[winId];
+    const winEl = document.getElementById(`win-${winId}`);
+    
+    win.min = true;
+    winEl.classList.add('minimized');
+    updateTaskbarBadges();
+}
+
+// Toggle Maximize window
+function toggleMaximize(winId) {
+    const win = windows[winId];
+    const winEl = document.getElementById(`win-${winId}`);
+    
+    win.max = !win.max;
+    if (win.max) {
+        winEl.classList.add('maximized');
+    } else {
+        winEl.classList.remove('maximized');
+    }
+}
+
+// Close window
+function closeWindow(winId) {
+    const win = windows[winId];
+    const winEl = document.getElementById(`win-${winId}`);
+    
+    win.active = false;
+    winEl.style.display = 'none';
+    updateTaskbarBadges();
+}
+
+// Drag functionality
+function startDrag(e, winId) {
+    focusWindow(winId);
+    if (windows[winId].max) return;
+    if (e.target.closest('.win-btn')) return;
+
+    const winEl = document.getElementById(`win-${winId}`);
+    activeDrag = { id: winId, type: 'drag' };
+    dragStartX = e.clientX - winEl.offsetLeft;
+    dragStartY = e.clientY - winEl.offsetTop;
+    
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+}
+
+function handleDragMove(e) {
+    if (!activeDrag || activeDrag.type !== 'drag') return;
+    const winEl = document.getElementById(`win-${activeDrag.id}`);
+    
+    const x = e.clientX - dragStartX;
+    const y = e.clientY - dragStartY;
+    
+    winEl.style.left = `${x}px`;
+    winEl.style.top = `${y}px`;
+    
+    windows[activeDrag.id].x = x;
+    windows[activeDrag.id].y = y;
+}
+
+// Resize functionality
+function startResize(e, winId) {
+    focusWindow(winId);
+    if (windows[winId].max) return;
+    
+    const winEl = document.getElementById(`win-${winId}`);
+    activeDrag = { id: winId, type: 'resize' };
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    resizeStartW = winEl.clientWidth;
+    resizeStartH = winEl.clientHeight;
+    
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleDragEnd);
+    e.preventDefault();
+}
+
+function handleResizeMove(e) {
+    if (!activeDrag || activeDrag.type !== 'resize') return;
+    const winEl = document.getElementById(`win-${activeDrag.id}`);
+    
+    const w = resizeStartW + (e.clientX - dragStartX);
+    const h = resizeStartH + (e.clientY - dragStartY);
+    
+    const finalW = Math.max(w, 280);
+    const finalH = Math.max(h, 200);
+    
+    winEl.style.width = `${finalW}px`;
+    winEl.style.height = `${finalH}px`;
+    
+    windows[activeDrag.id].w = finalW;
+    windows[activeDrag.id].h = finalH;
+}
+
+function handleDragEnd() {
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    activeDrag = null;
+}
+
+// Taskbar Indicators
+function updateTaskbarBadges() {
+    const taskbarContainer = document.getElementById('taskbar-apps');
+    taskbarContainer.innerHTML = '';
+    
+    Object.keys(windows).forEach(winId => {
+        const win = windows[winId];
+        if (win.active) {
+            const badge = document.createElement('div');
+            const isActiveFocus = document.getElementById(`win-${winId}`).classList.contains('active-focus');
+            
+            badge.className = `app-badge ${isActiveFocus && !win.min ? 'active' : ''}`;
+            badge.innerHTML = `<i class="fa-solid ${win.icon}"></i> <span>${win.name}</span>`;
+            
+            badge.onclick = () => {
+                if (win.min) {
+                    openWindow(winId);
+                } else if (isActiveFocus) {
+                    minimizeWindow(winId);
+                } else {
+                    focusWindow(winId);
+                }
+            };
+            
+            taskbarContainer.appendChild(badge);
+        }
+    });
+}
+
+// System clock
+function updateClock() {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    systemClock.textContent = `${hours}:${minutes} ${ampm}`;
+}
+
+// Start Menu logic
+startMenuTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startMenu.classList.toggle('open');
+});
+
+document.addEventListener('click', (e) => {
+    if (!startMenu.contains(e.target) && e.target !== startMenuTrigger) {
+        startMenu.classList.remove('open');
+    }
+});
+
+startSearch.addEventListener('input', () => {
+    const query = startSearch.value.toLowerCase();
+    const appItems = document.querySelectorAll('.start-app-item');
+    
+    appItems.forEach(item => {
+        const text = item.querySelector('span').textContent.toLowerCase();
+        if (text.includes(query)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+function launchFromStart(winId) {
+    openWindow(winId);
+    startMenu.classList.remove('open');
+    startSearch.value = '';
+    document.querySelectorAll('.start-app-item').forEach(el => el.style.display = 'flex');
+}
+
+// Settings Wallpaper Config
+function setWallpaper(theme) {
+    const body = document.getElementById('desktop-body');
+    if (theme === 'aurora') {
+        body.style.background = 'linear-gradient(135deg, #111827, #5b21b6, #e11d48)';
+    } else if (theme === 'midnight') {
+        body.style.background = 'linear-gradient(135deg, #09090b, #18181b, #27272a)';
+    } else if (theme === 'ubuntu') {
+        body.style.background = 'linear-gradient(135deg, #5e2750, #77216f, #e95420)';
+    } else if (theme === 'cyberpunk') {
+        body.style.background = 'linear-gradient(135deg, #0f172a, #0369a1, #0d9488)';
+    }
+    showToast('Wallpaper updated!');
+}
+
+function applyCustomWallpaper() {
+    const urlInput = document.getElementById('custom-wall-url');
+    const url = urlInput.value.trim();
+    if (url) {
+        document.getElementById('desktop-body').style.background = `url('${url}') center/cover no-repeat`;
+        showToast('Custom wallpaper applied!');
+    }
+}
+
+// Set up click listener on windows to trigger focus z-index change
+function setupWindowClickFocus() {
+    Object.keys(windows).forEach(winId => {
+        const el = document.getElementById(`win-${winId}`);
+        el.addEventListener('mousedown', () => focusWindow(winId));
+    });
+}
+
+// ================= Task Manager Logic =================
+async function refreshProcesses() {
+    taskListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading running tasks...</td></tr>';
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'ps aux' })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            if (data.stderr) {
+                taskListBody.innerHTML = `<tr><td colspan="6" style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</td></tr>`;
+                return;
+            }
+            
+            const lines = data.stdout.trim().split('\n');
+            runningProcesses = [];
+            
+            // Skip the first header line of ps aux
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const tokens = line.split(/\s+/);
+                if (tokens.length >= 11) {
+                    const cmd = tokens.slice(10).join(' ');
+                    runningProcesses.push({
+                        user: tokens[0],
+                        pid: tokens[1],
+                        cpu: tokens[2],
+                        mem: tokens[3],
+                        command: cmd
+                    });
+                }
+            }
+            
+            renderProcesses();
+        }
+    } catch (e) {
+        taskListBody.innerHTML = '<tr><td colspan="6" style="color: #ef4444; text-align: center; padding: 1rem;">Connection Error</td></tr>';
+    }
+}
+
+function renderProcesses() {
+    const query = taskSearch.value.toLowerCase().trim();
+    taskListBody.innerHTML = '';
+    
+    const filtered = runningProcesses.filter(p => {
+        return p.command.toLowerCase().includes(query) || 
+               p.user.toLowerCase().includes(query) || 
+               p.pid.includes(query);
+    });
+    
+    if (filtered.length === 0) {
+        taskListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No matching tasks found</td></tr>';
+        return;
+    }
+    
+    filtered.forEach(p => {
+        const tr = document.createElement('tr');
+        
+        // Command short version with full title tooltip
+        const isShortCmd = p.command.length > 50;
+        const displayCmd = isShortCmd ? p.command.substring(0, 47) + '...' : p.command;
+        
+        tr.innerHTML = `
+            <td style="padding: 0.5rem 0.8rem; color: #fff; font-weight: 500;">${p.user}</td>
+            <td style="padding: 0.5rem 0.8rem; color: var(--text-secondary);">${p.pid}</td>
+            <td style="padding: 0.5rem 0.8rem; color: #10b981;">${p.cpu}%</td>
+            <td style="padding: 0.5rem 0.8rem; color: #38bdf8;">${p.mem}%</td>
+            <td style="padding: 0.5rem 0.8rem;" class="task-cmd-cell" title="${p.command}">${displayCmd}</td>
+            <td style="padding: 0.5rem 0.8rem; text-align: right;">
+                <button class="fm-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; padding: 0.2rem 0.5rem;" onclick="killProcess('${p.pid}', '${p.command}')">End Task</button>
+            </td>
+        `;
+        taskListBody.appendChild(tr);
+    });
+}
+
+// Local search filtering
+taskSearch.addEventListener('input', renderProcesses);
+
+async function killProcess(pid, command) {
+    const shortName = command.split(' ')[0].split('/').pop();
+    if (!confirm(`Are you sure you want to terminate process ${pid} (${shortName})?`)) return;
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `kill -9 ${pid}` })
+        });
+        
+        if (res.ok) {
+            showToast(`Terminated task ${pid}`);
+            refreshProcesses();
+        }
+    } catch (e) {
+        alert(`Failed to kill process: ${e.message}`);
+    }
+}
+
+// ================= Ubuntu Connection & Console Logic =================
+async function initSystem() {
+    updateClock();
+    setInterval(updateClock, 1000);
+    setupWindowClickFocus();
+    updateTaskbarBadges();
+    
+    document.getElementById('win-settings').style.display = 'none';
+    document.getElementById('win-tasks').style.display = 'none';
+    
+    try {
+        const connected = await testConnection();
+        if (connected) {
+            updateConnectionStatus(true);
+            printOutput('Ubuntu 24.04 remote console session established successfully.\nReady for commands.', 'system-msg');
+            
+            await determineHomeDir();
+            
+            fetchSystemStats();
+            setInterval(fetchSystemStats, 4000);
+            
+            refreshFiles();
+        } else {
+            updateConnectionStatus(false);
+        }
+    } catch (e) {
+        updateConnectionStatus(false);
+    }
+}
+
+async function testConnection() {
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'whoami' })
+        });
+        return res.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function determineHomeDir() {
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'pwd' })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.stdout) {
+                currentPath = data.stdout.trim();
+            }
+        }
+    } catch (e) {}
+}
+
+function updateConnectionStatus(isConnected) {
+    if (isConnected) {
+        connBadge.style.background = 'rgba(16, 185, 129, 0.1)';
+        connBadge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+        connBadge.style.color = '#10b981';
+        connDot.style.backgroundColor = '#10b981';
+        connDot.style.boxShadow = '0 0 8px #10b981';
+        connText.textContent = 'Active WSL Link';
+    } else {
+        connBadge.style.background = 'rgba(239, 68, 68, 0.1)';
+        connBadge.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+        connBadge.style.color = '#ef4444';
+        connDot.style.backgroundColor = '#ef4444';
+        connDot.style.boxShadow = '0 0 8px #ef4444';
+        connText.textContent = 'Offline (Server stopped)';
+    }
+}
+
+async function fetchSystemStats() {
+    const startTime = performance.now();
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'bash /mnt/d/ubuntu-web-os/stats.sh' })
+        });
+
+        const endTime = performance.now();
+        const latency = Math.round(endTime - startTime);
+        latencyVal.textContent = `Ping: ${latency} ms`;
+
+        if (res.ok) {
+            const data = await res.json();
+            const output = data.stdout;
+            
+            if (output && output.includes('---STATS---')) {
+                const parts = output.split('---STATS---')[1].trim().split('\n');
+                if (parts.length >= 3) {
+                    const cpu = parseFloat(parts[0]).toFixed(1);
+                    const [ramUsed, ramTotal] = parts[1].split(' ');
+                    const [diskUsed, diskTotal, diskPctStr] = parts[2].trim().split(/\s+/);
+                    const diskPct = parseInt(diskPctStr.replace('%', ''));
+
+                    cpuVal.textContent = `${cpu}%`;
+                    cpuBar.style.width = `${cpu}%`;
+
+                    ramVal.textContent = `${ramUsed} / ${ramTotal} MB`;
+                    const ramPct = ((parseInt(ramUsed) / parseInt(ramTotal)) * 100).toFixed(1);
+                    ramBar.style.width = `${ramPct}%`;
+
+                    diskVal.textContent = `${diskUsed} / ${diskTotal} (${diskPctStr})`;
+                    diskBar.style.width = `${diskPct}%`;
+                    
+                    updateConnectionStatus(true);
+                }
+            }
+        }
+    } catch (e) {
+        updateConnectionStatus(false);
+    }
+}
+
+// ================= File Manager Logic =================
+async function refreshFiles() {
+    currentDirLabel.textContent = currentPath;
+    fileListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading files...</div>';
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `ls -ap --group-directories-first "${currentPath}"` })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.stderr) {
+                fileListContainer.innerHTML = `<div style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</div>`;
+                return;
+            }
+            
+            const lines = data.stdout.trim().split('\n').filter(line => line.trim() && line !== './' && line !== '../');
+            
+            if (lines.length === 0) {
+                fileListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Empty folder</div>';
+                return;
+            }
+
+            fileListContainer.innerHTML = '';
+            
+            lines.forEach(item => {
+                const isDir = item.endsWith('/');
+                const cleanName = isDir ? item.slice(0, -1) : item;
+                
+                const row = document.createElement('div');
+                row.className = 'file-row';
+                
+                const iconDiv = document.createElement('div');
+                iconDiv.className = `file-icon ${isDir ? 'folder' : 'file'}`;
+                iconDiv.innerHTML = isDir ? '<i class="fa-solid fa-folder"></i>' : '<i class="fa-solid fa-file"></i>';
+                row.appendChild(iconDiv);
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'file-name';
+                nameDiv.textContent = cleanName;
+                row.appendChild(nameDiv);
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'file-actions';
+                
+                if (!isDir) {
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'file-row-btn';
+                    editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square" title="Edit"></i>';
+                    editBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        openFile(cleanName);
+                    };
+                    actionsDiv.appendChild(editBtn);
+                }
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'file-row-btn btn-delete';
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can" title="Delete"></i>';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteItem(cleanName, isDir);
+                };
+                actionsDiv.appendChild(deleteBtn);
+                row.appendChild(actionsDiv);
+                
+                row.onclick = () => {
+                    if (isDir) {
+                        if (currentPath === '/') {
+                            currentPath = '/' + cleanName;
+                        } else {
+                            currentPath = currentPath.replace(/\/$/, '') + '/' + cleanName;
+                        }
+                        refreshFiles();
+                    } else {
+                        openFile(cleanName);
+                    }
+                };
+
+                fileListContainer.appendChild(row);
+            });
+        }
+    } catch (e) {
+        fileListContainer.innerHTML = `<div style="color: #ef4444; padding: 1rem;">Connection Error</div>`;
+    }
+}
+
+function navigateUp() {
+    if (currentPath === '/' || currentPath === '') return;
+    const parts = currentPath.split('/');
+    parts.pop();
+    currentPath = parts.join('/') || '/';
+    refreshFiles();
+}
+
+async function openFile(filename) {
+    currentlyEditingFile = filename;
+    modalFilename.textContent = filename;
+    editorContent.value = 'Loading file contents...';
+    editorModal.classList.add('open');
+    
+    try {
+        const filePath = currentPath.replace(/\/$/, '') + '/' + filename;
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `cat "${filePath}"` })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            editorContent.value = data.stdout || data.stderr || '';
+        }
+    } catch (e) {
+        editorContent.value = `Error opening file: ${e.message}`;
+    }
+}
+
+function closeEditor() {
+    editorModal.classList.remove('open');
+    currentlyEditingFile = '';
+}
+
+async function saveOpenFile() {
+    if (!currentlyEditingFile) return;
+    
+    const filePath = currentPath.replace(/\/$/, '') + '/' + currentlyEditingFile;
+    const base64Content = btoa(unescape(encodeURIComponent(editorContent.value)));
+    
+    try {
+        const writeCmd = `echo "${base64Content}" | base64 -d > "${filePath}"`;
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: writeCmd })
+        });
+        
+        if (res.ok) {
+            showToast('File saved successfully!');
+            closeEditor();
+            refreshFiles();
+        }
+    } catch (e) {
+        alert(`Failed to save: ${e.message}`);
+    }
+}
+
+async function deleteItem(name, isDir) {
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+    
+    const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
+    const cmd = isDir ? `rm -rf "${targetPath}"` : `rm -f "${targetPath}"`;
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: cmd })
+        });
+        if (res.ok) {
+            showToast('Deleted successfully!');
+            refreshFiles();
+        }
+    } catch (e) {
+        alert(`Delete failed: ${e.message}`);
+    }
+}
+
+async function promptCreateFile() {
+    const name = prompt('Enter name for the new file:');
+    if (!name) return;
+    const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `touch "${targetPath}"` })
+        });
+        if (res.ok) {
+            showToast('File created!');
+            refreshFiles();
+            openFile(name);
+        }
+    } catch (e) {}
+}
+
+async function promptCreateFolder() {
+    const name = prompt('Enter name for the new folder:');
+    if (!name) return;
+    const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `mkdir -p "${targetPath}"` })
+        });
+        if (res.ok) {
+            showToast('Folder created!');
+            refreshFiles();
+        }
+    } catch (e) {}
+}
+
+// ================= Terminal Logic =================
+termInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const command = termInput.value.trim();
+        if (command) {
+            sendTerminalCommand(command);
+        }
+        termInput.value = '';
+    }
+});
+
+async function sendTerminalCommand(command) {
+    if (command.toLowerCase() === 'clear') {
+        termBody.innerHTML = '';
+        return;
+    }
+
+    printOutput(`<span class="prompt">root@ubuntu-24.04:~$</span> ${command}`);
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: command })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.stdout) {
+                printOutput(data.stdout);
+            }
+            if (data.stderr) {
+                printOutput(data.stderr, 'stderr-msg');
+            }
+            if (!data.stdout && !data.stderr) {
+                printOutput('[Command executed with no output]', 'system-msg');
+            }
+            refreshFiles();
+        } else {
+            printOutput('Error: Unable to reach Ubuntu server backend.', 'stderr-msg');
+        }
+    } catch (e) {
+        printOutput(`Error: ${e.message}`, 'stderr-msg');
+    }
+}
+
+function printOutput(text, className = '') {
+    const div = document.createElement('div');
+    if (className) {
+        div.className = className;
+    }
+    
+    if (className === 'stderr-msg') {
+        div.style.color = '#ef4444';
+    } else if (className === 'system-msg') {
+        div.style.color = '#a78bfa';
+    }
+
+    div.innerHTML = text.replace(/\n/g, '<br>');
+    termBody.appendChild(div);
+    termBody.scrollTop = termBody.scrollHeight;
+}
+
+// Notes Logic
+function saveNotes() {
+    localStorage.setItem('ubuntu_os_notes', noteArea.value);
+    showToast('Notes saved!');
+}
+
+function showToast(message = 'Saved successfully!') {
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 2500);
+}
+
+// Launch system
+window.onload = () => {
+    const savedNotes = localStorage.getItem('ubuntu_os_notes');
+    if (savedNotes) {
+        noteArea.value = savedNotes;
+    }
+    initSystem();
+    
+    // Hide store window initially
+    document.getElementById('win-store').style.display = 'none';
+};
+
+// ================= App Store / Package Manager Logic =================
+const storeList = document.getElementById('store-list');
+const storeSearch = document.getElementById('store-search');
+const installProgressContainer = document.getElementById('install-progress-container');
+const installProgressBar = document.getElementById('install-progress-bar');
+const installStatusText = document.getElementById('install-status-text');
+const installPct = document.getElementById('install-pct');
+
+async function searchPackages() {
+    const query = storeSearch.value.trim();
+    if (!query) return;
+    
+    storeList.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Searching package database...</div>';
+    
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `apt-cache search "${query}" | head -n 30` })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            if (data.stderr) {
+                storeList.innerHTML = `<div style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</div>`;
+                return;
+            }
+            
+            const lines = data.stdout.trim().split('\n').filter(line => line.trim());
+            if (lines.length === 0) {
+                storeList.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">No packages found matching query.</div>';
+                return;
+            }
+            
+            storeList.innerHTML = '';
+            lines.forEach(line => {
+                // Split by first occurrence of ' - '
+                const parts = line.split(/ - (.*)/s);
+                const pkgName = parts[0].trim();
+                const pkgDesc = parts[1] ? parts[1].trim() : 'No description available.';
+                
+                const item = document.createElement('div');
+                item.className = 'store-item';
+                
+                item.innerHTML = `
+                    <div class="store-item-info">
+                        <span class="store-item-name">${pkgName}</span>
+                        <span class="store-item-desc">${pkgDesc}</span>
+                    </div>
+                    <button class="fm-btn" style="flex: 0 0 90px; background: var(--accent-orange); color: #fff;" onclick="installPackage('${pkgName}')">Install</button>
+                `;
+                storeList.appendChild(item);
+            });
+        }
+    } catch (e) {
+        storeList.innerHTML = '<div style="color: #ef4444; text-align: center; padding: 1rem;">Connection Error</div>';
+    }
+}
+
+// Bind Enter key to package search
+storeSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        searchPackages();
+    }
+});
+
+async function installPackage(pkgName) {
+    if (!confirm(`Are you sure you want to install package '${pkgName}'?`)) return;
+    
+    // Disable all install buttons to prevent multiple clicks
+    document.querySelectorAll('.store-item button').forEach(btn => btn.disabled = true);
+    
+    // Setup and show progress bar
+    installProgressContainer.style.display = 'flex';
+    installProgressBar.style.width = '0%';
+    installProgressBar.style.backgroundColor = 'var(--accent-orange)';
+    installStatusText.textContent = `Initializing installation of ${pkgName}...`;
+    installPct.textContent = '0%';
+    
+    let currentProgress = 5;
+    const progressInterval = setInterval(() => {
+        if (currentProgress < 90) {
+            currentProgress += Math.floor(Math.random() * 8) + 2;
+            if (currentProgress > 90) currentProgress = 90;
+            
+            installProgressBar.style.width = `${currentProgress}%`;
+            installPct.textContent = `${currentProgress}%`;
+            
+            if (currentProgress > 70) {
+                installStatusText.textContent = `Unpacking ${pkgName} and configuring...`;
+            } else if (currentProgress > 40) {
+                installStatusText.textContent = `Downloading ${pkgName} from archives...`;
+            } else {
+                installStatusText.textContent = `Reading package lists & resolving dependencies...`;
+            }
+        }
+    }, 400);
+
+    try {
+        // Run the installation command in the background
+        const res = await fetch(`${BACKEND_URL}/api/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: `apt-get install -y "${pkgName}"` })
+        });
+        
+        clearInterval(progressInterval);
+        
+        if (res.ok) {
+            const data = await res.json();
+            
+            // Log output in terminal so user can see what happened
+            printOutput(`<span class="prompt">root@ubuntu-24.04:~$</span> apt-get install -y ${pkgName}`);
+            if (data.stdout) printOutput(data.stdout);
+            if (data.stderr) printOutput(data.stderr, 'stderr-msg');
+            
+            if (data.exit_code === 0) {
+                // Success
+                installProgressBar.style.width = '100%';
+                installPct.textContent = '100%';
+                installStatusText.textContent = `Successfully installed ${pkgName}!`;
+                showToast(`Successfully installed ${pkgName}!`);
+            } else {
+                // APT returned error exit code
+                installProgressBar.style.width = '100%';
+                installProgressBar.style.backgroundColor = '#ef4444';
+                installPct.textContent = 'Failed';
+                installStatusText.textContent = `Error: APT failed to install ${pkgName}. Check terminal for output.`;
+                showToast('Installation failed!');
+            }
+        } else {
+            clearInterval(progressInterval);
+            installStatusText.textContent = 'Error: Lost connection to Ubuntu backend.';
+            installProgressBar.style.backgroundColor = '#ef4444';
+            showToast('Connection lost!');
+        }
+    } catch (e) {
+        clearInterval(progressInterval);
+        installStatusText.textContent = `Error: ${e.message}`;
+        installProgressBar.style.backgroundColor = '#ef4444';
+        showToast('Error occurred!');
+    }
+    
+    // Hide progress bar and re-enable buttons after 3 seconds
+    setTimeout(() => {
+        installProgressContainer.style.display = 'none';
+        document.querySelectorAll('.store-item button').forEach(btn => btn.disabled = false);
+    }, 4000);
+}
+

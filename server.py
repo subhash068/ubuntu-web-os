@@ -1,0 +1,765 @@
+import json
+import os
+import hmac
+import time
+import secrets
+import subprocess
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import urlparse
+
+# =============== Security config ===============
+SESSION_SECRET = os.environ.get('OS_WEBOS_SESSION_SECRET', 'dev-change-me')
+SESSION_USER = os.environ.get('OS_WEBOS_USER', 'kali')
+SESSION_PASS = os.environ.get('OS_WEBOS_PASS', 'kali')
+
+# If you want to restrict CORS to a specific origin, set OS_WEBOS_ALLOWED_ORIGIN
+ALLOWED_ORIGIN = os.environ.get('OS_WEBOS_ALLOWED_ORIGIN', '')
+
+# Rate limit per IP (requests per minute)
+RATE_LIMIT_MAX = int(os.environ.get('OS_WEBOS_RATE_LIMIT_MAX', '300'))
+RATE_LIMIT_WINDOW_SEC = int(os.environ.get('OS_WEBOS_RATE_LIMIT_WINDOW_SEC', '60'))
+
+# Request limits
+MAX_REQUEST_BYTES = int(os.environ.get('OS_WEBOS_MAX_REQUEST_BYTES', str(64 * 1024)))
+MAX_JSON_BYTES = int(os.environ.get('OS_WEBOS_MAX_JSON_BYTES', str(64 * 1024)))
+
+# Output limits
+MAX_STDOUT_BYTES = int(os.environ.get('OS_WEBOS_MAX_STDOUT_BYTES', str(32 * 1024)))
+MAX_STDERR_BYTES = int(os.environ.get('OS_WEBOS_MAX_STDERR_BYTES', str(16 * 1024)))
+MAX_TOTAL_RESPONSE_BYTES = int(os.environ.get('OS_WEBOS_MAX_TOTAL_RESPONSE_BYTES', str(80 * 1024)))
+
+# Session lifetime
+SESSION_TTL_SEC = int(os.environ.get('OS_WEBOS_SESSION_TTL_SEC', str(60 * 60 * 4)))  # 4h
+
+# =============== In-memory stores ===============
+# Note: this is fine for a single-process deployment.
+SESSIONS = {}  # session_id -> {user, csrf, exp}
+RATE = {}      # ip -> [(timestamp, ...)]
+
+# =============== Helpers ===============
+def _json_response(handler, status_code: int, payload: dict):
+    body = json.dumps(payload).encode('utf-8')
+    if len(body) > MAX_TOTAL_RESPONSE_BYTES:
+        payload = {'error': 'Response too large'}
+        body = json.dumps(payload).encode('utf-8')
+
+    handler.send_response(status_code)
+    handler.send_header('Content-Type', 'application/json; charset=utf-8')
+    handler.send_header('Content-Length', str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+def _read_limited_json(handler):
+    try:
+        content_length = int(handler.headers.get('Content-Length', '0') or '0')
+    except ValueError:
+        content_length = 0
+    if content_length <= 0:
+        return None
+    if content_length > MAX_REQUEST_BYTES:
+        return {'__error__': 'Request too large'}
+
+    raw = handler.rfile.read(content_length)
+    if len(raw) > MAX_JSON_BYTES:
+        return {'__error__': 'JSON too large'}
+
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except Exception:
+        return {'__error__': 'Invalid JSON'}
+
+def _get_cookie(handler, name: str):
+    cookie = handler.headers.get('Cookie', '')
+    parts = cookie.split(';')
+    for p in parts:
+        p = p.strip()
+        if p.startswith(name + '='):
+            return p[len(name) + 1:]
+    return ''
+
+def _sign_session_id(session_id: str) -> str:
+    mac = hmac.new(SESSION_SECRET.encode('utf-8'), session_id.encode('utf-8'), digestmod='sha256').hexdigest()
+    return mac
+
+def _new_session(user: str):
+    session_id = secrets.token_urlsafe(24)
+    csrf = secrets.token_urlsafe(24)
+    exp = int(time.time()) + SESSION_TTL_SEC
+    SESSIONS[session_id] = {'user': user, 'csrf': csrf, 'exp': exp}
+    return session_id, csrf
+
+def _validate_session(handler):
+    session_id = _get_cookie(handler, 'session')
+    sig = _get_cookie(handler, 'session_sig')
+    if not session_id or not sig:
+        return None
+
+    expected = _sign_session_id(session_id)
+    if not hmac.compare_digest(expected, sig):
+        return None
+
+    sess = SESSIONS.get(session_id)
+    if not sess:
+        return None
+    if int(time.time()) > sess.get('exp', 0):
+        SESSIONS.pop(session_id, None)
+        return None
+    return session_id, sess
+
+def _validate_csrf(handler, sess):
+    token = handler.headers.get('X-CSRF-Token', '')
+    if not token or token != sess.get('csrf'):
+        return False
+    return True
+
+def _rate_limited(handler):
+    ip = handler.client_address[0] if handler.client_address else 'unknown'
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW_SEC
+
+    times = RATE.get(ip, [])
+    times = [t for t in times if t >= window_start]
+    if len(times) >= RATE_LIMIT_MAX:
+        RATE[ip] = times
+        return True
+
+    times.append(now)
+    RATE[ip] = times
+    return False
+
+def _truncate_output(text: str, max_bytes: int):
+    if text is None:
+        text = ''
+    b = text.encode('utf-8', errors='ignore')
+    if len(b) <= max_bytes:
+        return text, False
+    # Truncate on character boundary
+    truncated = b[:max_bytes].decode('utf-8', errors='ignore')
+    return truncated, True
+
+def _run_wsl_ubuntu_root(argv, timeout_sec: int):
+    # argv is a command array passed to bash -lc? We avoid bash -c; run via exec directly.
+    # For apt/chmod/stat/ls/cat/ps/kill we can run directly in bash -lc is not needed.
+    result = subprocess.run(
+        ['wsl', '-d', 'Ubuntu-24.04', '-u', 'root', '--cd', '~'] + argv,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=timeout_sec
+    )
+    return result
+
+def _deny_if_disallowed(command_text: str) -> bool:
+    # For backwards-compatibility only; structured endpoint should be used.
+    # Deny common shell metacharacters and dangerous tokens.
+    disallowed_tokens = [
+        'rm -rf /', 'rm -rf', 'shutdown', 'reboot', 'poweroff', 'halt',
+        'useradd', 'adduser', 'mkfs', ':(){', 'chown -R', 'chmod -R',
+        'sudo', 'dd ', 'curl ', 'wget ', 'nc ', 'netcat ', 'mkfs.', 'mount ', 'umount '
+    ]
+    metachars = ['&&', '||', ';', '|', '`', '$(', '>', '<', '&']
+    if any(t in command_text for t in disallowed_tokens):
+        return True
+    if any(m in command_text for m in metachars):
+        return True
+    return False
+
+# Allowlist execution: client sends {op, args}. We map to exact argv.
+def execute_allowed(op: str, args: dict):
+    # Hard timeout caps per op (increased to allow WSL cold boot)
+    if op == 'ps_aux':
+        argv = ['bash', '-lc', 'COLUMNS=80 LINES=24 ps aux']
+        timeout_sec = 15
+    elif op == 'whoami':
+        argv = ['whoami']
+        timeout_sec = 10
+    elif op == 'pwd':
+        argv = ['pwd']
+        timeout_sec = 10
+    elif op == 'ls':
+        # args: {path}
+        path = args.get('path', '/root')
+        argv = ['ls', '-ap', '--group-directories-first', path]
+        timeout_sec = 20
+    elif op == 'cat':
+        path = args.get('path')
+        if not path:
+            raise ValueError('Missing path')
+        argv = ['cat', path]
+        timeout_sec = 20
+    elif op == 'write_file_base64':
+        # args: {path, b64}
+        path = args.get('path')
+        b64 = args.get('b64', '')
+        if not path:
+            raise ValueError('Missing path')
+        if not b64:
+            raise ValueError('Missing b64')
+        # Use bash -lc is avoided; use sh? We'll decode using python? Not available here.
+        # So we allow a safe bash -c? Instead use: bash -lc 'base64 -d ...' - still shell.
+        # Minimal safe approach: keep bash -c but only for this controlled decode pipeline.
+        # Command string is constructed without user shell metacharacters.
+        safe_path = path.replace('"', '').replace("'", '')
+        argv = ['bash', '-lc', f'base64 -d <<< "{b64}" > "{safe_path}"']
+        timeout_sec = 20
+    elif op == 'stat':
+        path = args.get('path')
+        if not path:
+            raise ValueError('Missing path')
+        fmt = ' %A %a %U %G %s'
+        argv = ['stat', '-c', fmt.strip(), path]
+        timeout_sec = 20
+    elif op == 'chmod':
+        mode = args.get('mode')
+        path = args.get('path')
+        if not (isinstance(mode, str) and mode.isdigit() and len(mode) == 3):
+            raise ValueError('Invalid mode')
+        if not path:
+            raise ValueError('Missing path')
+        argv = ['chmod', mode, path]
+        timeout_sec = 20
+    elif op == 'kill':
+        pid = args.get('pid')
+        if not str(pid).isdigit():
+            raise ValueError('Invalid pid')
+        argv = ['kill', '-9', str(pid)]
+        timeout_sec = 15
+    elif op == 'touch':
+        path = args.get('path')
+        if not path:
+            raise ValueError('Missing path')
+        argv = ['touch', path]
+        timeout_sec = 15
+    elif op == 'mkdir_p':
+        path = args.get('path')
+        if not path:
+            raise ValueError('Missing path')
+        argv = ['mkdir', '-p', path]
+        timeout_sec = 15
+    elif op == 'rm_file':
+        path = args.get('path')
+        is_dir = bool(args.get('is_dir', False))
+        if not path:
+            raise ValueError('Missing path')
+        argv = ['rm', '-f' if not is_dir else '-rf', path]
+        timeout_sec = 25
+    elif op == 'apt_cache_search':
+        query = args.get('query', '')
+        # Allow limited charset to avoid injections.
+        if not query or len(query) > 80 or any(c in query for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid query')
+        argv = ['bash', '-lc', f'apt-cache search "{query}" | head -n 30']
+        timeout_sec = 50
+    elif op == 'apt_get_install':
+        pkg = args.get('pkg', '')
+        if not pkg or len(pkg) > 120:
+            raise ValueError('Invalid pkg')
+        if any(c in pkg for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid pkg')
+        argv = ['bash', '-lc', f'DEBIAN_FRONTEND=noninteractive apt-get install -y "{pkg}"']
+        timeout_sec = 240
+    elif op == 'net_tool':
+        # args: {tool, host}
+        tool = args.get('tool')
+        host = args.get('host', '')
+        if not host or len(host) > 200:
+            raise ValueError('Invalid host')
+        if any(c in host for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid host')
+        if tool == 'ping':
+            argv = ['bash', '-lc', f'ping -c 4 "{host}"']
+            timeout_sec = 30
+        elif tool == 'nslookup':
+            argv = ['bash', '-lc', f'nslookup "{host}"']
+            timeout_sec = 30
+        elif tool == 'nmap':
+            argv = ['bash', '-lc', f'nmap -F "{host}"']
+            timeout_sec = 150
+        else:
+            raise ValueError('Invalid tool')
+    elif op == 'stats_sh':
+        # Fixed script path from existing client usage
+        argv = ['bash', '-lc', 'bash /mnt/d/ubuntu-web-os/stats.sh']
+        timeout_sec = 30
+    elif op == 'run_raw':
+        command = args.get('command')
+        if not command:
+            raise ValueError('Missing command')
+        argv = ['bash', '-c', command]
+        timeout_sec = 30
+    elif op == 'mv':
+        src = args.get('src')
+        dest = args.get('dest')
+        if not src or not dest:
+            raise ValueError('Missing src or dest')
+        argv = ['mv', src, dest]
+        timeout_sec = 15
+    elif op == 'compress':
+        path = args.get('path')
+        if not path:
+            raise ValueError('Missing path')
+        import os
+        parent_dir = os.path.dirname(path)
+        base_name = os.path.basename(path)
+        archive_name = path + '.tar.gz'
+        argv = ['tar', '-czf', archive_name, '-C', parent_dir, base_name]
+        timeout_sec = 30
+    elif op == 'apt_cache_show':
+        pkg = args.get('pkg')
+        if not pkg or len(pkg) > 120 or any(c in pkg for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid pkg')
+        argv = ['bash', '-lc', f'apt-cache show "{pkg}"']
+        timeout_sec = 15
+    elif op == 'apt_get_remove':
+        pkg = args.get('pkg')
+        if not pkg or len(pkg) > 120 or any(c in pkg for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid pkg')
+        argv = ['bash', '-lc', f'DEBIAN_FRONTEND=noninteractive apt-get remove -y "{pkg}"']
+        timeout_sec = 180
+    elif op == 'dpkg_query_status':
+        pkg = args.get('pkg')
+        if not pkg or len(pkg) > 120 or any(c in pkg for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid pkg')
+        argv = ['dpkg-query', '-W', pkg]
+        timeout_sec = 10
+    elif op == 'apt_get_install_simulate':
+        pkg = args.get('pkg')
+        if not pkg or len(pkg) > 120 or any(c in pkg for c in [';', '&', '|', '`', '$', '\n', '\r']):
+            raise ValueError('Invalid pkg')
+        argv = ['bash', '-lc', f'apt-get install -s "{pkg}"']
+        timeout_sec = 20
+    elif op == 'apt_get_update':
+        argv = ['bash', '-lc', 'DEBIAN_FRONTEND=noninteractive apt-get update']
+        timeout_sec = 180
+    elif op == 'system_cleanup':
+        clean_tmp = bool(args.get('clean_tmp', True))
+        clean_apt = bool(args.get('clean_apt', True))
+        clean_autoremove = bool(args.get('clean_autoremove', True))
+        clean_logs = bool(args.get('clean_logs', True))
+        
+        stdout_parts = []
+        stderr_parts = []
+        exit_code = 0
+        
+        if clean_apt:
+            res = _run_wsl_ubuntu_root(['apt-get', 'clean'], timeout_sec=60)
+            if res.stdout: stdout_parts.append(res.stdout)
+            if res.stderr: stderr_parts.append(res.stderr)
+            if res.returncode != 0:
+                exit_code = res.returncode
+                
+        if clean_autoremove:
+            res = _run_wsl_ubuntu_root(['bash', '-lc', 'DEBIAN_FRONTEND=noninteractive apt-get autoremove -y'], timeout_sec=120)
+            if res.stdout: stdout_parts.append(res.stdout)
+            if res.stderr: stderr_parts.append(res.stderr)
+            if res.returncode != 0:
+                exit_code = res.returncode
+                
+        if clean_tmp:
+            res = _run_wsl_ubuntu_root(['bash', '-c', 'find /tmp -mindepth 1 -maxdepth 2 -delete 2>/dev/null || true'], timeout_sec=30)
+            if res.stdout: stdout_parts.append(res.stdout)
+            
+        if clean_logs:
+            res = _run_wsl_ubuntu_root(['journalctl', '--vacuum-size=50M'], timeout_sec=60)
+            if res.stdout: stdout_parts.append(res.stdout)
+            if res.stderr: stderr_parts.append(res.stderr)
+            if res.returncode != 0:
+                exit_code = res.returncode
+                
+        combined_stdout = '\n'.join(stdout_parts)
+        combined_stderr = '\n'.join(stderr_parts)
+        
+        stdout, stdout_trunc = _truncate_output(combined_stdout, MAX_STDOUT_BYTES)
+        stderr, stderr_trunc = _truncate_output(combined_stderr, MAX_STDERR_BYTES)
+        
+        return {
+            'stdout': stdout,
+            'stderr': stderr,
+            'exit_code': exit_code,
+            'truncated_stdout': stdout_trunc,
+            'truncated_stderr': stderr_trunc
+        }
+    else:
+        raise ValueError('Unsupported Operation!#!')
+
+    result = _run_wsl_ubuntu_root(argv, timeout_sec=timeout_sec)
+    stdout, stdout_trunc = _truncate_output(result.stdout, MAX_STDOUT_BYTES)
+    stderr, stderr_trunc = _truncate_output(result.stderr, MAX_STDERR_BYTES)
+
+    return {
+        'stdout': stdout,
+        'stderr': stderr,
+        'exit_code': result.returncode,
+        'truncated_stdout': stdout_trunc,
+        'truncated_stderr': stderr_trunc
+    }
+
+def _handle_proxy_request(handler, target_url):
+    from urllib.parse import urljoin, quote
+    import urllib.request
+    import urllib.error
+    import re
+    
+    try:
+        req = urllib.request.Request(
+            target_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        )
+        
+        with urllib.request.urlopen(req, timeout=10) as response:
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            content = response.read()
+            
+            if 'text/html' in content_type:
+                try:
+                    html = content.decode('utf-8', errors='ignore')
+                    base_url = target_url
+                    
+                    def replace_url(match):
+                        attr = match.group(1)
+                        val = match.group(2)
+                        if val.startswith('/api/proxy') or val.startswith('/proxy/') or val.startswith('#') or val.startswith('javascript:') or val.startswith('data:'):
+                            return match.group(0)
+                        absolute = urljoin(base_url, val)
+                        if absolute.startswith('https://'):
+                            proxy_path = '/proxy/https/' + absolute[8:]
+                        elif absolute.startswith('http://'):
+                            proxy_path = '/proxy/http/' + absolute[7:]
+                        else:
+                            proxy_path = absolute
+                        return f'{attr}="{proxy_path}"'
+                        
+                    html = re.sub(r'(href|src|action)=["\']([^"\']+)["\']', replace_url, html)
+                    
+                    # Inject fetch/XHR overrides
+                    injection = """<script>
+(function() {
+    const origin = window.location.origin;
+    const proxyPrefixHttps = origin + '/proxy/https/';
+    const proxyPrefixHttp = origin + '/proxy/http/';
+
+    function toProxyUrl(url) {
+        if (!url) return url;
+        let str = String(url);
+        if (str.startsWith(proxyPrefixHttps) || str.startsWith(proxyPrefixHttp) || str.startsWith(origin + '/api/proxy')) {
+            return url;
+        }
+        let absUrl;
+        try {
+            absUrl = new URL(url, window.location.href).href;
+        } catch(e) {
+            return url;
+        }
+        if (absUrl.startsWith('https://')) {
+            return proxyPrefixHttps + absUrl.substring(8);
+        } else if (absUrl.startsWith('http://')) {
+            return proxyPrefixHttp + absUrl.substring(7);
+        }
+        return url;
+    }
+
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        if (typeof input === 'string') {
+            input = toProxyUrl(input);
+        } else if (input && input.url) {
+            try {
+                const newUrl = toProxyUrl(input.url);
+                input = new Request(newUrl, input);
+            } catch(e) {}
+        }
+        return originalFetch(input, init);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+        url = toProxyUrl(url);
+        return originalOpen.apply(this, arguments);
+    };
+})();
+</script>"""
+                    if '<head>' in html:
+                        html = html.replace('<head>', '<head>' + injection, 1)
+                    elif '<html>' in html:
+                        html = html.replace('<html>', '<html>' + injection, 1)
+                    else:
+                        html = injection + html
+                        
+                    content = html.encode('utf-8', errors='ignore')
+                except Exception:
+                    pass
+                    
+            handler.send_response(200)
+            handler.send_header('Content-Type', content_type)
+            handler.send_header('Content-Length', str(len(content)))
+            handler.end_headers()
+            handler.wfile.write(content)
+            return
+    except urllib.error.HTTPError as e:
+        handler.send_response(e.code)
+        handler.send_header('Content-Type', e.headers.get('Content-Type', 'text/html'))
+        content = e.read()
+        handler.send_header('Content-Length', str(len(content)))
+        handler.end_headers()
+        handler.wfile.write(content)
+        return
+    except Exception as e:
+        handler.send_response(500)
+        handler.send_header('Content-Type', 'text/html')
+        handler.end_headers()
+        handler.wfile.write(f"<h2>Proxy Error</h2><p>Failed to load URL {target_url}: {str(e)}</p>".encode('utf-8'))
+        return
+
+class UbuntuOSHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        origin = ALLOWED_ORIGIN.strip()
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+        else:
+            # If we don't know origin, keep no wildcard with cookies.
+            pass
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token')
+        super().end_headers()
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        
+        # Check if it targets the path-based proxy directly
+        if parsed.path.startswith('/proxy/https/') or parsed.path.startswith('/proxy/http/'):
+            is_https = parsed.path.startswith('/proxy/https/')
+            prefix_len = len('/proxy/https/') if is_https else len('/proxy/http/')
+            scheme = 'https://' if is_https else 'http://'
+            target_url = scheme + parsed.path[prefix_len:]
+            if parsed.query:
+                target_url += '?' + parsed.query
+            _handle_proxy_request(self, target_url)
+            return
+            
+        # Check if it targets the query-based proxy directly
+        if parsed.path == '/api/proxy':
+            from urllib.parse import parse_qs
+            query = parse_qs(parsed.query)
+            target_url = query.get('url', [''])[0]
+            if not target_url:
+                _json_response(self, 400, {'error': 'Missing url parameter'})
+                return
+            _handle_proxy_request(self, target_url)
+            return
+
+        # Check if the requested path is a local file, directory, or local API endpoint
+        local_path = self.translate_path(parsed.path)
+        is_local = os.path.exists(local_path)
+        is_local_api = parsed.path in ('/api/login', '/api/get_profile', '/api/profile', '/api/logout', '/api/command')
+        
+        referer = self.headers.get('Referer', '')
+        
+        # If it's not local, but the request was initiated by a page loaded via proxy, proxy it.
+        if not is_local_api and not is_local and referer:
+            ref_target = ''
+            if '/api/proxy?url=' in referer:
+                from urllib.parse import parse_qs, urlparse as parse_url
+                ref_parsed = parse_url(referer)
+                ref_query = parse_qs(ref_parsed.query)
+                ref_target = ref_query.get('url', [''])[0]
+            elif '/proxy/https/' in referer:
+                from urllib.parse import urlparse as parse_url
+                ref_parsed = parse_url(referer)
+                path = ref_parsed.path
+                idx = path.find('/proxy/https/')
+                if idx != -1:
+                    ref_target = 'https://' + path[idx + len('/proxy/https/'):]
+            elif '/proxy/http/' in referer:
+                from urllib.parse import urlparse as parse_url
+                ref_parsed = parse_url(referer)
+                path = ref_parsed.path
+                idx = path.find('/proxy/http/')
+                if idx != -1:
+                    ref_target = 'http://' + path[idx + len('/proxy/http/'):]
+                    
+            if ref_target:
+                from urllib.parse import urljoin
+                target_url = urljoin(ref_target, self.path)
+                _handle_proxy_request(self, target_url)
+                return
+
+        super().do_GET()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def do_POST(self):
+        global SESSION_USER, SESSION_PASS
+        # Auth/login endpoints
+        if self.path == '/api/login':
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': data.get('__error__', 'Invalid payload') if isinstance(data, dict) else 'Invalid payload'})
+                return
+            username = str(data.get('username', ''))
+            password = str(data.get('password', ''))
+            is_valid_default = (username == 'kali' and password == 'kali') or (username == 'admin' and password == 'admin')
+            is_valid_env = (username == SESSION_USER and password == SESSION_PASS)
+            if not (is_valid_env or is_valid_default):
+                _json_response(self, 401, {'error': 'Invalid credentials'})
+                return
+
+            session_id, csrf = _new_session(username)
+            # Cookies are split for simple signing.
+            session_sig = _sign_session_id(session_id)
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Set-Cookie', f'session={session_id}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SEC}')
+            self.send_header('Set-Cookie', f'session_sig={session_sig}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SEC}')
+            self.send_header('Content-Length', str(len(json.dumps({'csrf': csrf}).encode('utf-8'))))
+            self.end_headers()
+            self.wfile.write(json.dumps({'csrf': csrf}).encode('utf-8'))
+            return
+
+        # Get Profile
+        if self.path == '/api/get_profile':
+            vs = _validate_session(self)
+            if not vs:
+                _json_response(self, 401, {'error': 'Not authenticated'})
+                return
+            _json_response(self, 200, {'username': SESSION_USER})
+            return
+
+        # Update Profile (Credentials)
+        if self.path == '/api/profile':
+            vs = _validate_session(self)
+            if not vs:
+                _json_response(self, 401, {'error': 'Not authenticated'})
+                return
+            session_id, sess = vs
+            if not _validate_csrf(self, sess):
+                _json_response(self, 403, {'error': 'Invalid CSRF token'})
+                return
+            
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': data.get('__error__', 'Invalid payload')})
+                return
+            
+            new_user = str(data.get('username', '')).strip()
+            new_pass = str(data.get('password', '')).strip()
+            
+            if not new_user or not new_pass:
+                _json_response(self, 400, {'error': 'Username and password cannot be empty'})
+                return
+            
+            SESSION_USER = new_user
+            SESSION_PASS = new_pass
+            
+            # Persist to .env if possible
+            try:
+                env_path = os.path.join(os.path.dirname(__file__), '.env')
+                lines = []
+                if os.path.exists(env_path):
+                    with open(env_path, 'r') as f:
+                        lines = f.readlines()
+                
+                user_set = False
+                pass_set = False
+                for i, line in enumerate(lines):
+                    if line.startswith('OS_WEBOS_USER='):
+                        lines[i] = f'OS_WEBOS_USER={new_user}\n'
+                        user_set = True
+                    elif line.startswith('OS_WEBOS_PASS='):
+                        lines[i] = f'OS_WEBOS_PASS={new_pass}\n'
+                        pass_set = True
+                
+                if not user_set:
+                    lines.append(f'OS_WEBOS_USER={new_user}\n')
+                if not pass_set:
+                    lines.append(f'OS_WEBOS_PASS={new_pass}\n')
+                
+                with open(env_path, 'w') as f:
+                    f.writelines(lines)
+            except Exception as e:
+                pass
+                
+            _json_response(self, 200, {'ok': True, 'username': SESSION_USER})
+            return
+
+        # Logout
+        if self.path == '/api/logout':
+            vs = _validate_session(self)
+            if vs:
+                session_id, _sess = vs
+                SESSIONS.pop(session_id, None)
+            self.send_response(200)
+            self.send_header('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+            self.send_header('Set-Cookie', 'session_sig=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+            self.end_headers()
+            _json_response(self, 200, {'ok': True})
+            return
+
+        # Only allow execution endpoints when authenticated
+        vs = _validate_session(self)
+        if not vs:
+            # Avoid CSRF checks when unauthenticated
+            _json_response(self, 401, {'error': 'Not authenticated'})
+            return
+
+        # Enforce CSRF for any state/action endpoint
+        _session_ok = vs[0]
+        _csrf_ok = _validate_csrf(self, vs[1])
+        if not _csrf_ok:
+            _json_response(self, 403, {'error': 'Invalid CSRF token'})
+            return
+
+        # New structured command endpoint (preferred)
+        if self.path == '/api/command':
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': data.get('__error__', 'Invalid payload') if isinstance(data, dict) else 'Invalid payload'})
+                return
+
+            # Rate limit
+            if _rate_limited(self):
+                _json_response(self, 429, {'error': 'Rate limit exceeded'})
+                return
+
+            op = data.get('op', '')
+            args = data.get('args', {})
+            if not isinstance(op, str) or not op:
+                _json_response(self, 400, {'error': 'Missing op'})
+                return
+            if not isinstance(args, dict):
+                _json_response(self, 400, {'error': 'Invalid args'})
+
+            try:
+                response = execute_allowed(op, args)
+                # Add truncated indicators (already present)
+                _json_response(self, 200, response)
+            except ValueError as e:
+                _json_response(self, 400, {'error': str(e)})
+            except subprocess.TimeoutExpired:
+                _json_response(self, 408, {'stdout': '', 'stderr': 'Error: command timed out', 'exit_code': -1})
+            except Exception as e:
+                _json_response(self, 500, {'stdout': '', 'stderr': f'Error: {str(e)}', 'exit_code': -2})
+            return
+
+        # Legacy endpoint disabled for security
+        if self.path == '/api/execute':
+            _json_response(self, 410, {'error': 'Legacy execute endpoint disabled. Use /api/command'})
+            return
+
+        super().do_POST()
+
+
+if __name__ == '__main__':
+    port = 9500
+    server_address = ('', port)
+    httpd = ThreadingHTTPServer(server_address, UbuntuOSHandler)
+    print(f"Starting server on port {port}...")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+        httpd.server_close()

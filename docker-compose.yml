@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  webos:
+    build: .
+    container_name: ubuntu-webos
+    restart: unless-stopped
+    ports:
+      - "9500:9500"
+    environment:
+      - OS_WEBOS_SESSION_SECRET=${OS_WEBOS_SESSION_SECRET:-prod-secret-session-key-change-me}
+      - OS_WEBOS_USER=${OS_WEBOS_USER:-admin}
+      - OS_WEBOS_PASS=${OS_WEBOS_PASS:-admin}
+      - OS_WEBOS_ALLOWED_ORIGIN=${OS_WEBOS_ALLOWED_ORIGIN:-}
+      - OS_WEBOS_RATE_LIMIT_MAX=300
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9500/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

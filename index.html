@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ubuntu 24.04 Web OS Desktop</title>
+    <link rel="stylesheet" href="index.css">
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body id="desktop-body">
+    <!-- Main Desktop Environment Workspace -->
+    <div class="desktop" id="desktop">
+        
+        <!-- Desktop Shortcuts (Require Double-Click) -->
+        <div class="desktop-shortcuts">
+            <div class="shortcut" ondblclick="openWindow('terminal')">
+                <div class="shortcut-icon"><i class="fa-solid fa-terminal"></i></div>
+                <div class="shortcut-name">Terminal</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('files')">
+                <div class="shortcut-icon"><i class="fa-solid fa-folder-open"></i></div>
+                <div class="shortcut-name">Files</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('monitor')">
+                <div class="shortcut-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="shortcut-name">Monitor</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('tasks')">
+                <div class="shortcut-icon"><i class="fa-solid fa-list-check"></i></div>
+                <div class="shortcut-name">Tasks</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('store')">
+                <div class="shortcut-icon"><i class="fa-solid fa-shop"></i></div>
+                <div class="shortcut-name">App Store</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('network')">
+                <div class="shortcut-icon"><i class="fa-solid fa-network-wired"></i></div>
+                <div class="shortcut-name">Network</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('notes')">
+                <div class="shortcut-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+                <div class="shortcut-name">Notepad</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('settings')">
+                <div class="shortcut-icon"><i class="fa-solid fa-gears"></i></div>
+                <div class="shortcut-name">Settings</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('cleaner')">
+                <div class="shortcut-icon"><i class="fa-solid fa-broom"></i></div>
+                <div class="shortcut-name">Cleaner</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('deploy')">
+                <div class="shortcut-icon"><i class="fa-solid fa-server"></i></div>
+                <div class="shortcut-name">Deploy Center</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('browser')">
+                <div class="shortcut-icon"><i class="fa-brands fa-firefox-browser"></i></div>
+                <div class="shortcut-name">Browser</div>
+            </div>
+        </div>
+
+        <!-- Start Menu Popup -->
+        <div class="start-menu" id="start-menu">
+            <div class="start-header-section">
+                <span>Applications</span>
+            </div>
+            <div class="start-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="start-search" placeholder="Type to search..." autocomplete="off">
+            </div>
+            <div class="start-apps-list" id="start-apps-list">
+                <div class="start-app-item" onclick="launchFromStart('terminal')">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>Terminal</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('files')">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>File Manager</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('monitor')">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>System Monitor</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('tasks')">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Task Manager</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('store')">
+                    <i class="fa-solid fa-shop"></i>
+                    <span>App Store</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('network')">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>Network Center</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('notes')">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>Notepad</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('settings')">
+                    <i class="fa-solid fa-gears"></i>
+                    <span>Settings</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('cleaner')">
+                    <i class="fa-solid fa-broom"></i>
+                    <span>System Cleaner</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('deploy')">
+                    <i class="fa-solid fa-server"></i>
+                    <span>Deploy Center</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('browser')">
+                    <i class="fa-brands fa-firefox-browser"></i>
+                    <span>Firefox Browser</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. Terminal Window -->
+        <div class="window" id="win-terminal" style="top: 80px; left: 80px; width: 620px; height: 420px; z-index: 100;">
+            <div class="window-header" onmousedown="startDrag(event, 'terminal')">
+                <div class="window-title">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>Terminal</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('terminal')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('terminal')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('terminal')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="terminal">
+                    <div class="terminal-body" id="terminal-body">
+                        <div>Initializing connection to Ubuntu 24.04 session...</div>
+                    </div>
+                    <div class="terminal-header" style="border-top: 1px solid rgba(255, 255, 255, 0.05); border-bottom: none; background: transparent;">
+                        <div class="terminal-input-line" style="width: 100%;">
+                            <span class="prompt" id="prompt-label">root@ubuntu:~$</span>
+                            <input type="text" class="term-input" id="term-input" placeholder="Type a command..." autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'terminal')"></div>
+        </div>
+
+        <!-- 2. File Manager Window -->
+        <div class="window" id="win-files" style="top: 100px; left: 450px; width: 550px; height: 420px; z-index: 90; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'files')">
+                <div class="window-title">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span id="current-dir">/root</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('files')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('files')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('files')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="file-manager-controls">
+                    <button class="fm-btn" onclick="navigateUp()" title="Go Up"><i class="fa-solid fa-arrow-up"></i> Up</button>
+                    <button class="fm-btn" onclick="refreshFiles()" title="Refresh"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+                    <button class="fm-btn" onclick="promptCreateFile()" title="New File"><i class="fa-solid fa-file-circle-plus"></i> +File</button>
+                    <button class="fm-btn" onclick="promptCreateFolder()" title="New Folder"><i class="fa-solid fa-folder-plus"></i> +Folder</button>
+                    <button class="fm-btn" onclick="triggerFileUpload()" title="Upload File"><i class="fa-solid fa-upload"></i> Upload</button>
+                    <input type="file" id="file-upload-input" style="display:none" onchange="handleFileUpload(event)">
+                </div>
+                <div class="file-list-container" id="file-list">
+                    <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading files...</div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'files')"></div>
+        </div>
+
+        <!-- 3. System Monitor Window -->
+        <div class="window" id="win-monitor" style="top: 250px; left: 150px; width: 480px; height: 350px; z-index: 80; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'monitor')">
+                <div class="window-title">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>System Monitor</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('monitor')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('monitor')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('monitor')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.2rem;">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <span>CPU LOAD</span>
+                        <i class="fa-solid fa-microchip"></i>
+                    </div>
+                    <div class="stat-val" id="cpu-val">--%</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="cpu-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <span>RAM USAGE</span>
+                        <i class="fa-solid fa-memory"></i>
+                    </div>
+                    <div class="stat-val" id="ram-val">-- / -- MB</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="ram-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <span>DISK USAGE (/)</span>
+                        <i class="fa-solid fa-hard-drive"></i>
+                    </div>
+                    <div class="stat-val" id="disk-val">-- / -- (Use: --%)</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="disk-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'monitor')"></div>
+        </div>
+
+        <!-- 4. Notes Window -->
+        <div class="window" id="win-notes" style="top: 120px; left: 800px; width: 450px; height: 350px; z-index: 75; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'notes')">
+                <div class="window-title">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>Notepad</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('notes')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('notes')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('notes')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100% - 40px);">
+                <textarea class="note-area" id="note-area" style="flex: 1; min-height: 100px;" placeholder="Keep commands or setup scripts here for quick access..."></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Auto-saved locally</span>
+                    <button onclick="saveNotes()" style="background: var(--accent-orange); border: none; color: white; padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 500; cursor: pointer; transition: background 0.2s ease;">
+                        Save Notes
+                    </button>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'notes')"></div>
+        </div>
+
+        <!-- 5. Settings Window -->
+        <div class="window" id="win-settings" style="top: 200px; left: 550px; width: 680px; height: 480px; z-index: 70; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'settings')">
+                <div class="window-title">
+                    <i class="fa-solid fa-gears"></i>
+                    <span>Settings</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('settings')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('settings')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('settings')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; height: calc(100% - 40px); overflow: hidden;">
+                <!-- Sidebar -->
+                <div class="settings-sidebar" style="width: 200px; background: rgba(0, 0, 0, 0.2); border-right: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 0.2rem; padding: 0.8rem;">
+                    <div class="settings-tab-btn active" id="tab-appearance" onclick="switchSettingsTab('appearance')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: #fff; cursor: pointer; background: rgba(233, 84, 32, 0.1);">
+                        <i class="fa-solid fa-palette" style="color: var(--accent-orange); width: 16px; text-align: center;"></i>
+                        <span>Appearance</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-system" onclick="switchSettingsTab('system')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-circle-info" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>System Info</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-env" onclick="switchSettingsTab('env')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-sliders" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Preferences</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-network" onclick="switchSettingsTab('network')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-wifi" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Network Details</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-services" onclick="switchSettingsTab('services')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-server" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>WSL Services</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-security" onclick="switchSettingsTab('security')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-shield-halved" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Security</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-about" onclick="switchSettingsTab('about')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-circle-question" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>About Web OS</span>
+                    </div>
+                    <div class="settings-tab-btn" id="tab-profile" onclick="switchSettingsTab('profile')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-user-gear" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>User Profile</span>
+                    </div>
+                </div>
+                
+                <!-- Content Area -->
+                <div class="settings-content" style="flex: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; background: rgba(12, 14, 25, 0.4);">
+                    
+                    <!-- TAB 1: Appearance -->
+                    <div id="set-pane-appearance" class="settings-pane" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+                        <div>
+                            <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.8rem; color: #fff;">Change Desktop Wallpaper</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem;">
+                                <button class="fm-btn" onclick="setWallpaper('aurora')" style="height: 48px; background: linear-gradient(135deg, #111827, #5b21b6, #e11d48); border: none; color: white;">Aurora Dusk</button>
+                                <button class="fm-btn" onclick="setWallpaper('midnight')" style="height: 48px; background: linear-gradient(135deg, #09090b, #18181b, #27272a); border: none; color: white;">Midnight Black</button>
+                                <button class="fm-btn" onclick="setWallpaper('ubuntu')" style="height: 48px; background: linear-gradient(135deg, #5e2750, #77216f, #e95420); border: none; color: white;">Ubuntu Theme</button>
+                                <button class="fm-btn" onclick="setWallpaper('cyberpunk')" style="height: 48px; background: linear-gradient(135deg, #0f172a, #0369a1, #0d9488); border: none; color: white;">Ocean Deep</button>
+                            </div>
+                        </div>
+                        
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1.2rem;">
+                            <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.8rem; color: #fff;">Custom Wallpaper URL</h3>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="custom-wall-url" placeholder="https://example.com/wallpaper.jpg" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px;">
+                                <button class="fm-btn" onclick="applyCustomWallpaper()" style="flex: 0 0 100px;">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- TAB 2: System Info -->
+                    <div id="set-pane-system" class="settings-pane" style="display: none; flex-direction: column; gap: 1rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">WSL Ubuntu Environment Info</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.6rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; font-family: var(--font-main); font-size: 0.8rem; color: var(--text-secondary);">
+                            <div style="display: flex; justify-content: space-between;"><span style="color:#fff;">OS Version:</span><span id="set-sys-os">Loading...</span></div>
+                            <div style="display: flex; justify-content: space-between;"><span style="color:#fff;">Kernel:</span><span id="set-sys-kernel">Loading...</span></div>
+                            <div style="display: flex; justify-content: space-between;"><span style="color:#fff;">Architecture:</span><span id="set-sys-arch">Loading...</span></div>
+                            <div style="display: flex; justify-content: space-between;"><span style="color:#fff;">Shell Path:</span><span id="set-sys-shell">Loading...</span></div>
+                            <div style="display: flex; justify-content: space-between;"><span style="color:#fff;">Uptime:</span><span id="set-sys-uptime">Loading...</span></div>
+                        </div>
+                        <button class="fm-btn" onclick="fetchSettingsSystemInfo()" style="width: 140px; margin-top: 0.5rem;"><i class="fa-solid fa-rotate"></i> Refresh Info</button>
+                    </div>
+                    
+                    <!-- TAB 3: Preferences -->
+                    <div id="set-pane-env" class="settings-pane" style="display: none; flex-direction: column; gap: 1.2rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">User Preferences</h3>
+                        
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem;">Persistent Filesystem Root Path</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="pref-fs-root" value="/root" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px;">
+                                <button class="fm-btn" onclick="saveFsRootPreference()" style="flex: 0 0 100px;">Save Root</button>
+                            </div>
+                        </div>
+                        
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1rem;">
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem;">Default Text Editor Theme</label>
+                            <select id="pref-editor-theme" onchange="changeEditorTheme(this.value)" style="width: 100%; background: #0c0d15; border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 0.5rem; border-radius: 6px; font-family: var(--font-main); outline: none;">
+                                <option value="ubuntu-dark">Ubuntu Dark (Default)</option>
+                                <option value="vs-dark">Monaco Dark</option>
+                                <option value="vs">Monaco Light</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- TAB 4: Security -->
+                    <div id="set-pane-security" class="settings-pane" style="display: none; flex-direction: column; gap: 1.2rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff;">Security Settings</h3>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current Session User: <strong id="set-sec-user" style="color: #fff;">admin</strong></div>
+                            <button class="fm-btn" onclick="apiLogout()" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444; width: 120px; font-weight: 600; margin-top: 0.5rem;">Log Out</button>
+                        </div>
+                    </div>
+                    
+                    <!-- TAB 5: Network Details -->
+                    <div id="set-pane-network" class="settings-pane" style="display: none; flex-direction: column; gap: 1rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">WSL Network Interfaces</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.6rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; font-family: var(--font-mono); font-size: 0.75rem; color: #38bdf8; max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;" id="set-net-interfaces">
+                            Loading interface details...
+                        </div>
+                        <button class="fm-btn" onclick="fetchSettingsNetworkInfo()" style="width: 140px; margin-top: 0.5rem;"><i class="fa-solid fa-rotate"></i> Refresh Network</button>
+                    </div>
+                    
+                    <!-- TAB 6: Services -->
+                    <div id="set-pane-services" class="settings-pane" style="display: none; flex-direction: column; gap: 1rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">Active System Services</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.6rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; font-family: var(--font-mono); font-size: 0.75rem; color: #4ade80; max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;" id="set-services-list">
+                            Loading services list...
+                        </div>
+                        <button class="fm-btn" onclick="fetchSettingsServices()" style="width: 140px; margin-top: 0.5rem;"><i class="fa-solid fa-rotate"></i> Refresh Services</button>
+                    </div>
+                    
+                    <!-- TAB 7: About -->
+                    <div id="set-pane-about" class="settings-pane" style="display: none; flex-direction: column; gap: 1rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff;">About Web OS</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.8rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+                            <div>
+                                <strong style="color: #fff; font-size: 0.9rem;">Ubuntu Web OS Desktop v1.2.0</strong>
+                            </div>
+                            <div>
+                                A modern, premium browser-based workspace bridging a secure root command execution node on native WSL2 Ubuntu distribution.
+                            </div>
+                            <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.8rem; margin-top: 0.4rem;">
+                                <strong style="color:#fff;">Features Enabled:</strong>
+                                <ul style="margin-left: 1.2rem; margin-top: 0.3rem; list-style-type: disc;">
+                                    <li>Secure API Command Allowlist execution model</li>
+                                    <li>Double-Click Launcher & Taskbar Multi-Window</li>
+                                    <li>Monaco Code Editor IDE tab integration</li>
+                                    <li>WSL App Store & Service Manager</li>
+                                    <li>System Cleaner & diagnostics</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 8: Profile -->
+                    <div id="set-pane-profile" class="settings-pane" style="display: none; flex-direction: column; gap: 1.2rem; width: 100%;">
+                        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">Web OS Credentials</h3>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem;">
+                            Update the administrator credentials used to log into this desktop dashboard.
+                        </div>
+                        
+                        <form onsubmit="event.preventDefault(); saveUserProfile();" style="display: flex; flex-direction: column; gap: 0.8rem; max-width: 360px; width: 100%;">
+                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Admin Username</label>
+                                <input type="text" id="set-profile-user" placeholder="Enter username" autocomplete="username" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; color: #fff;">
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">New Password</label>
+                                <input type="password" id="set-profile-pass" placeholder="Enter new password" autocomplete="new-password" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; color: #fff;">
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Confirm Password</label>
+                                <input type="password" id="set-profile-confirm" placeholder="Confirm password" autocomplete="new-password" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; color: #fff;">
+                            </div>
+                            <button type="submit" class="fm-btn" style="margin-top: 0.5rem; padding: 0.6rem; font-weight: 600; background: var(--accent-orange); color: white; border: none; width: 100%;"><i class="fa-solid fa-floppy-disk"></i> Update Profile Credentials</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'settings')"></div>
+        </div>
+
+        <!-- 6. Task Manager Window -->
+        <div class="window" id="win-tasks" style="top: 180px; left: 300px; width: 680px; height: 450px; z-index: 85; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'tasks')">
+                <div class="window-title">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Task Manager</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('tasks')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('tasks')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('tasks')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; height: calc(100% - 40px);">
+                <div class="task-manager-controls" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="task-search" placeholder="Search processes..." class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; flex: 1;">
+                    <button class="fm-btn" onclick="refreshProcesses()" style="flex: 0 0 100px;"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+                </div>
+                <div class="task-table-container" style="flex: 1; overflow-y: auto; background: #040508; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                    <table class="task-table" style="width: 100%; border-collapse: collapse; text-align: left; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-primary);">
+                        <thead style="position: sticky; top: 0; background: #0c0d15; z-index: 10;">
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <th style="padding: 0.6rem 0.8rem; cursor: pointer; user-select: none;" onclick="sortProcesses('user')">USER <span id="sort-user"></span></th>
+                                <th style="padding: 0.6rem 0.8rem; cursor: pointer; user-select: none;" onclick="sortProcesses('pid')">PID <span id="sort-pid"></span></th>
+                                <th style="padding: 0.6rem 0.8rem; cursor: pointer; user-select: none;" onclick="sortProcesses('cpu')">%CPU <span id="sort-cpu"></span></th>
+                                <th style="padding: 0.6rem 0.8rem; cursor: pointer; user-select: none;" onclick="sortProcesses('mem')">%MEM <span id="sort-mem"></span></th>
+                                <th style="padding: 0.6rem 0.8rem; cursor: pointer; user-select: none;" onclick="sortProcesses('command')">COMMAND <span id="sort-command"></span></th>
+                                <th style="padding: 0.6rem 0.8rem; text-align: right; user-select: none;">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task-list-body">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading processes...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'tasks')"></div>
+        </div>
+
+        <!-- 7. App Store Window -->
+        <div class="window" id="win-store" style="top: 150px; left: 350px; width: 640px; height: 450px; z-index: 80; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'store')">
+                <div class="window-title">
+                    <i class="fa-solid fa-shop"></i>
+                    <span>Ubuntu App Store (APT)</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('store')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('store')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('store')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; height: calc(100% - 40px);">
+                <div class="store-controls" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="store-search" placeholder="Search packages (e.g. git, curl, htop)..." class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; flex: 1;">
+                    <button class="fm-btn" onclick="searchPackages()" style="flex: 0 0 100px;"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+                </div>
+                
+                <!-- Installation Progress overlay -->
+                <div id="install-progress-container" style="display: none; background: rgba(255,255,255,0.03); border: 1px solid rgba(233, 84, 32, 0.25); padding: 0.8rem; border-radius: 8px; flex-direction: column; gap: 0.4rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+                        <span id="install-status-text" style="font-weight: 500; color: #fff;">Installing package...</span>
+                        <span id="install-pct">0%</span>
+                    </div>
+                    <div class="progress-bar-container" style="height: 8px;">
+                        <div class="progress-bar" id="install-progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="store-list-container" id="store-list" style="flex: 1; overflow-y: auto; background: #040508; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.5rem; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Search for Ubuntu packages to install...</div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'store')"></div>
+        </div>
+
+        <!-- 8. Network Center Window -->
+        <div class="window" id="win-network" style="top: 220px; left: 250px; width: 620px; height: 420px; z-index: 78; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'network')">
+                <div class="window-title">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>Network Center</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('network')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('network')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('network')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; height: calc(100% - 40px);">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="net-host" placeholder="Host or IP (e.g. google.com, 8.8.8.8)..." class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.5rem; border-radius: 6px; flex: 1;">
+                    <select id="net-tool" style="background: #0c0d15; border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 0.5rem; border-radius: 6px; font-family: var(--font-main); outline: none;">
+                        <option value="ping">Ping Test</option>
+                        <option value="nslookup">DNS Lookup</option>
+                        <option value="nmap">Quick Port Scan</option>
+                    </select>
+                    <button class="fm-btn" onclick="runNetworkDiagnostics()" style="flex: 0 0 100px;"><i class="fa-solid fa-play"></i> Run</button>
+                </div>
+                <div id="net-output" style="flex: 1; overflow-y: auto; background: #040508; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem; font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8; white-space: pre-wrap; word-break: break-all;">
+                    Enter a host and select a tool to run network diagnostics inside Ubuntu.
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'network')"></div>
+        </div>
+
+        <!-- 9. System Cleaner Window -->
+        <div class="window" id="win-cleaner" style="top: 240px; left: 600px; width: 460px; height: 380px; z-index: 75; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'cleaner')">
+                <div class="window-title">
+                    <i class="fa-solid fa-broom"></i>
+                    <span>System Cleaner</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('cleaner')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('cleaner')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('cleaner')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100% - 40px); overflow-y: auto;">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+                    Select the components you wish to clean from your WSL Ubuntu 24.04 environment:
+                </div>
+                
+                <div class="clean-options-container" style="display: flex; flex-direction: column; gap: 0.6rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px;">
+                    <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; cursor: pointer; color: #fff;">
+                        <input type="checkbox" id="clean-tmp" checked style="accent-color: var(--accent-orange);">
+                        <span>Temporary Files (/tmp directory caches)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; cursor: pointer; color: #fff;">
+                        <input type="checkbox" id="clean-apt" checked style="accent-color: var(--accent-orange);">
+                        <span>APT Package Archives & Cache (`apt-get clean`)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; cursor: pointer; color: #fff;">
+                        <input type="checkbox" id="clean-autoremove" checked style="accent-color: var(--accent-orange);">
+                        <span>Unused Dependencies (`apt-get autoremove`)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; cursor: pointer; color: #fff;">
+                        <input type="checkbox" id="clean-logs" checked style="accent-color: var(--accent-orange);">
+                        <span>Systemd Rotated Journal Logs (`vacuum to 50M`)</span>
+                    </label>
+                </div>
+                
+                <button class="fm-btn" id="btn-clean-app" onclick="startDedicatedCleanup()" style="flex: none; width: 100%; padding: 0.6rem; font-weight: 600; font-size: 0.85rem; background: var(--accent-orange); border: none; color: white; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+                    <i class="fa-solid fa-broom" style="margin-right: 0.4rem;"></i> Run System Cleanup
+                </button>
+                
+                <div id="clean-app-status-box" style="display: none; flex: 1; flex-direction: column; gap: 0.4rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.8rem; min-height: 160px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+                        <span id="clean-app-text" style="color: var(--text-secondary);">Initializing...</span>
+                        <span id="clean-app-pct" style="color: var(--accent-orange); font-weight: 600;">0%</span>
+                    </div>
+                    <div class="progress-bar-container" style="height: 6px; margin-bottom: 0.4rem;">
+                        <div class="progress-bar" id="clean-app-progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div id="clean-app-console" style="flex: 1; min-height: 100px; max-height: 160px; overflow-y: auto; background: #040508; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 0.5rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.3;">
+                        Ready.
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'cleaner')"></div>
+        </div>
+
+        <!-- 10. DevOps & Deployment Center Window -->
+        <div class="window" id="win-deploy" style="top: 150px; left: 200px; width: 660px; height: 480px; z-index: 79; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'deploy')">
+                <div class="window-title">
+                    <i class="fa-solid fa-server"></i>
+                    <span>DevOps & Deployment Center</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('deploy')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('deploy')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('deploy')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; height: calc(100% - 40px); overflow: hidden;">
+                <!-- Sidebar -->
+                <div class="deploy-sidebar" style="width: 180px; background: rgba(0, 0, 0, 0.2); border-right: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 0.2rem; padding: 0.8rem;">
+                    <div class="deploy-tab-btn active" id="deploy-tab-overview" onclick="switchDeployTab('overview')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: #fff; cursor: pointer; background: rgba(233, 84, 32, 0.1);">
+                        <i class="fa-solid fa-circle-info" style="color: var(--accent-orange); width: 16px; text-align: center;"></i>
+                        <span>Overview</span>
+                    </div>
+                    <div class="deploy-tab-btn" id="deploy-tab-env" onclick="switchDeployTab('env')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-sliders" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Environment (.env)</span>
+                    </div>
+                    <div class="deploy-tab-btn" id="deploy-tab-nginx" onclick="switchDeployTab('nginx')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-network-wired" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Nginx Gateway</span>
+                    </div>
+                    <div class="deploy-tab-btn" id="deploy-tab-logs" onclick="switchDeployTab('logs')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fa-solid fa-terminal" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
+                        <span>Service Logs</span>
+                    </div>
+                </div>
+                
+                <!-- Content Area -->
+                <div class="deploy-content" style="flex: 1; padding: 1.2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; background: rgba(12, 14, 25, 0.4);">
+                    
+                    <!-- TAB 1: Overview -->
+                    <div id="deploy-pane-overview" class="deploy-pane" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                        <div>
+                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem; color: #fff;">WSL / Server Service Status</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem;">
+                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px;">
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Systemd Service</div>
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.3rem;">
+                                        <span id="dep-systemd-status" style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">Checking...</span>
+                                        <button class="fm-btn" onclick="runDeployCommand('systemctl_status')" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; flex: none;">Check</button>
+                                    </div>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px;">
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Docker Daemon</div>
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.3rem;">
+                                        <span id="dep-docker-status" style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">Checking...</span>
+                                        <button class="fm-btn" onclick="runDeployCommand('docker_status')" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; flex: none;">Check</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.6rem; color: #fff;">Container & Compose Control</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem;">
+                                <button class="fm-btn" onclick="runDeployCommand('compose_up')" style="padding: 0.5rem;"><i class="fa-solid fa-play" style="color: #10b981;"></i> Docker Compose Up</button>
+                                <button class="fm-btn" onclick="runDeployCommand('compose_down')" style="padding: 0.5rem;"><i class="fa-solid fa-stop" style="color: #ef4444;"></i> Docker Compose Down</button>
+                                <button class="fm-btn" onclick="runDeployCommand('compose_build')" style="padding: 0.5rem;"><i class="fa-solid fa-wrench" style="color: #f59e0b;"></i> Rebuild Image</button>
+                                <button class="fm-btn" onclick="runDeployCommand('docker_prune')" style="padding: 0.5rem;"><i class="fa-solid fa-trash-can" style="color: var(--text-muted);"></i> Prune Containers</button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem; color: #fff;">Running Containers</h3>
+                            <div id="dep-containers-list" style="background: #040508; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.5rem; min-height: 80px; font-family: var(--font-mono); font-size: 0.75rem; color: #38bdf8; white-space: pre-wrap;">
+                                Loading containers info...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: Env Configuration -->
+                    <div id="deploy-pane-env" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
+                        <div>
+                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">Edit Environment Variables</h3>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                Modify the credentials and configurations saved in your `.env` deployment file.
+                            </div>
+                            <textarea id="dep-env-editor" class="editor-textarea" style="height: 180px; font-size: 0.8rem; color: #a7f3d0; margin-bottom: 0.6rem;"></textarea>
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <button class="fm-btn" onclick="fetchDeployEnv()" style="flex: none; width: 120px;"><i class="fa-solid fa-rotate"></i> Reload</button>
+                                <button class="fm-btn" onclick="saveDeployEnv()" style="flex: none; width: 120px; background: var(--accent-orange); color: white; border: none;"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: Nginx Gateway -->
+                    <div id="deploy-pane-nginx" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
+                        <div>
+                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">Nginx Proxy Configuration</h3>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                Preview `nginx.conf` reverse-proxy settings template.
+                            </div>
+                            <textarea id="dep-nginx-editor" class="editor-textarea" style="height: 180px; font-size: 0.8rem; color: #93c5fd; margin-bottom: 0.6rem;"></textarea>
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <button class="fm-btn" onclick="fetchDeployNginx()" style="flex: none; width: 120px;"><i class="fa-solid fa-rotate"></i> Reload</button>
+                                <button class="fm-btn" onclick="runDeployCommand('nginx_test')" style="flex: none; width: 140px;"><i class="fa-solid fa-square-check"></i> Test Nginx syntax</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: Service Logs -->
+                    <div id="deploy-pane-logs" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff;">Docker & Service Logs</h3>
+                            <div style="display: flex; gap: 0.4rem;">
+                                <button class="fm-btn" onclick="fetchDeployLogs('docker')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; flex: none;">Docker Compose Logs</button>
+                                <button class="fm-btn" onclick="fetchDeployLogs('systemd')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; flex: none;">Systemd Logs</button>
+                            </div>
+                        </div>
+                        <div id="dep-logs-console" style="height: 220px; overflow-y: auto; background: #040508; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.6rem; font-family: var(--font-mono); font-size: 0.75rem; color: #a7f3d0; white-space: pre-wrap;">
+                            Click one of the log query buttons above.
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'deploy')"></div>
+        </div>
+
+        <!-- 11. Firefox Browser Window -->
+        <div class="window" id="win-browser" style="top: 120px; left: 120px; width: 720px; height: 520px; z-index: 81; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'browser')">
+                <div class="window-title">
+                    <i class="fa-brands fa-firefox-browser"></i>
+                    <span>Firefox Browser</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('browser')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('browser')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('browser')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="display: flex; flex-direction: column; height: calc(100% - 40px); overflow: hidden; background: #0c0d15;">
+                <!-- Browser Navbar -->
+                <div class="browser-navbar" style="display: flex; gap: 0.5rem; align-items: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); flex: none;">
+                    <button class="fm-btn" onclick="browserGoBack()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button class="fm-btn" onclick="browserGoForward()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-arrow-right"></i></button>
+                    <button class="fm-btn" onclick="browserRefresh()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-rotate-right"></i></button>
+                    <input type="text" id="browser-url-input" value="https://start.ubuntu.com" class="term-input" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 0.4rem 0.8rem; border-radius: 6px; flex: 1; font-size: 0.8rem; color: #fff;" onkeydown="if(event.key==='Enter') navigateBrowser(this.value)">
+                    <button class="fm-btn" onclick="navigateBrowser(document.getElementById('browser-url-input').value)" style="flex: none; width: 60px; height: 32px; font-size: 0.8rem;">Go</button>
+                </div>
+                <!-- Browser Frame -->
+                <div style="flex: 1; position: relative; width: 100%;">
+                    <iframe id="browser-iframe" src="about:blank" style="width: 100%; height: 100%; border: none; background: #fff;"></iframe>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'browser')"></div>
+        </div>
+
+    </div>
+
+    <!-- Bottom Desktop Taskbar / Dock -->
+    <div class="taskbar">
+        <div class="taskbar-left">
+            <div class="start-btn" id="start-menu-trigger">
+                <i class="fa-solid fa-house"></i>
+            </div>
+            <div class="status-badge" id="conn-badge" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid; border-radius: 20px; font-size: 0.8rem; height: 28px; padding: 0 10px;">
+                <span class="status-dot" id="conn-dot" style="background-color: #ef4444; box-shadow: 0 0 8px #ef4444; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px;"></span>
+                <span id="conn-text">Connecting...</span>
+            </div>
+        </div>
+        
+        <!-- Dock Running Applications -->
+        <div class="taskbar-apps" id="taskbar-apps">
+            <!-- App badges are loaded dynamically here -->
+        </div>
+
+        <div class="taskbar-right" style="gap: 1rem; display: flex; align-items: center;">
+            <div id="latency-val" style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500;">
+                Ping: -- ms
+            </div>
+            <div class="clock" id="system-clock">10:59 AM</div>
+        </div>
+    </div>
+
+    <!-- File Editor Modal overlay -->
+    <div class="modal-overlay" id="editor-modal">
+        <div class="modal-card ide-mode" style="max-width: 950px; width: 95%;">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-file-code" style="color: var(--accent-orange);"></i>
+                    <span>IDE Code Editor</span>
+                </div>
+                <button class="modal-close" onclick="closeEditor()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; height: 500px;">
+                <div class="editor-tabs-bar" id="editor-tabs">
+                    <!-- Dynamic tabs will be added here -->
+                </div>
+                <div id="monaco-editor-container" style="flex: 1; width: 100%; height: 100%;"></div>
+            </div>
+            <div class="modal-footer">
+                <span id="editor-status" style="font-size: 0.8rem; color: var(--text-secondary); margin-right: auto; align-self: center;">All files saved</span>
+                <button class="fm-btn" style="background: rgba(255,255,255,0.05); color: #fff; max-width: 100px;" onclick="closeEditor()">Close IDE</button>
+                <button class="fm-btn" style="background: var(--accent-orange); color: #fff; max-width: 120px;" onclick="saveActiveTab()">Save File</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Properties Modal overlay -->
+    <div class="modal-overlay" id="properties-modal">
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-circle-info" style="color: var(--accent-orange);"></i>
+                    <span>File Properties & Permissions</span>
+                </div>
+                <button class="modal-close" onclick="closeProperties()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.85rem;">
+                <div style="display: grid; grid-template-columns: 80px 1fr; gap: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.8rem;">
+                    <span style="color: var(--text-secondary);">Name:</span><span id="prop-name" style="font-weight: 600; color: #fff;">--</span>
+                    <span style="color: var(--text-secondary);">Path:</span><span id="prop-path" style="font-family: var(--font-mono); word-break: break-all;">--</span>
+                    <span style="color: var(--text-secondary);">Size:</span><span id="prop-size">--</span>
+                    <span style="color: var(--text-secondary);">Owner:</span><span id="prop-owner">--</span>
+                </div>
+                
+                <div>
+                    <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.6rem; color: #fff;">Chmod Permissions</h3>
+                    <div style="display: grid; grid-template-columns: 80px repeat(3, 1fr); gap: 0.5rem; text-align: center; font-family: var(--font-mono);">
+                        <div></div>
+                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 0.75rem;">READ (r)</div>
+                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 0.75rem;">WRITE (w)</div>
+                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 0.75rem;">EXEC (x)</div>
+                        
+                        <div style="text-align: left; font-weight: 500;">Owner</div>
+                        <div><input type="checkbox" id="perm-ur"></div>
+                        <div><input type="checkbox" id="perm-uw"></div>
+                        <div><input type="checkbox" id="perm-ux"></div>
+                        
+                        <div style="text-align: left; font-weight: 500;">Group</div>
+                        <div><input type="checkbox" id="perm-gr"></div>
+                        <div><input type="checkbox" id="perm-gw"></div>
+                        <div><input type="checkbox" id="perm-gx"></div>
+                        
+                        <div style="text-align: left; font-weight: 500;">Others</div>
+                        <div><input type="checkbox" id="perm-or"></div>
+                        <div><input type="checkbox" id="perm-ow"></div>
+                        <div><input type="checkbox" id="perm-ox"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="fm-btn" style="background: rgba(255,255,255,0.05); color: #fff;" onclick="closeProperties()">Cancel</button>
+                <button class="fm-btn" style="background: var(--accent-orange); color: #fff;" onclick="saveProperties()">Apply Permissions</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="login-modal" style="display: none; align-items: center; justify-content: center;">
+        <div class="modal-card" style="max-width: 420px; width: 95%;">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-lock" style="color: var(--accent-orange);"></i>
+                    <span>Secure Login</span>
+                </div>
+            </div>
+            <form onsubmit="event.preventDefault(); apiLogin();" class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem;">
+                <input id="login-username" type="text" placeholder="Username" autocomplete="username" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.6rem; border-radius: 6px;">
+                <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" class="term-input" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 0.6rem; border-radius: 6px;">
+                <div id="login-error" style="color: #ef4444; font-size: 0.85rem; min-height: 1.2em;"></div>
+                <button type="submit" class="fm-btn" style="background: var(--accent-orange); color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom File Manager Context Menu -->
+    <div id="fm-context-menu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" id="ctx-open"><i class="fa-solid fa-folder-open"></i> Open</div>
+        <div class="context-menu-item" id="ctx-download"><i class="fa-solid fa-download"></i> Download</div>
+        <div class="context-menu-item" id="ctx-rename"><i class="fa-solid fa-pen"></i> Rename / Move</div>
+        <div class="context-menu-item" id="ctx-compress"><i class="fa-solid fa-file-zipper"></i> Compress (.tar.gz)</div>
+        <div class="context-menu-item" id="ctx-properties"><i class="fa-solid fa-circle-info"></i> Properties</div>
+        <div class="context-menu-item text-danger" id="ctx-delete"><i class="fa-solid fa-trash-can"></i> Delete</div>
+    </div>
+
+    <!-- Custom Desktop Context Menu -->
+    <div id="desktop-context-menu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" onclick="openWindow('settings')"><i class="fa-solid fa-palette"></i> Change Wallpaper</div>
+        <div class="context-menu-item" onclick="openWindow('terminal')"><i class="fa-solid fa-terminal"></i> Open Terminal</div>
+        <div class="context-menu-item" onclick="openWindow('files')"><i class="fa-solid fa-folder-open"></i> Open Files</div>
+        <div class="context-menu-item" onclick="openWindow('settings'); switchSettingsTab('system');"><i class="fa-solid fa-circle-info"></i> System Details</div>
+    </div>
+
+    <!-- Custom Shortcut Context Menu -->
+    <div id="shortcut-context-menu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" id="shortcut-ctx-open"><i class="fa-solid fa-arrow-pointer"></i> Open App</div>
+        <div class="context-menu-item" id="shortcut-ctx-about"><i class="fa-solid fa-circle-info"></i> Properties</div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        Saved successfully!
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
