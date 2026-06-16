@@ -73,6 +73,14 @@
                 <div class="shortcut-icon"><i class="fa-solid fa-globe"></i></div>
                 <div class="shortcut-name">Active Tunnels</div>
             </div>
+            <div class="shortcut" ondblclick="openWindow('redis')">
+                <div class="shortcut-icon"><i class="fa-solid fa-database" style="color: #ef4444;"></i></div>
+                <div class="shortcut-name">Redis Server</div>
+            </div>
+            <div class="shortcut" ondblclick="openWindow('kubernetes')">
+                <div class="shortcut-icon"><i class="fa-solid fa-dharmachakra" style="color: #326ce5;"></i></div>
+                <div class="shortcut-name">Kubernatives</div>
+            </div>
         </div>
 
         <!-- Start Menu Popup -->
@@ -144,6 +152,14 @@
                 <div class="start-app-item" onclick="launchFromStart('music')">
                     <i class="fa-solid fa-music"></i>
                     <span>Music Player</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('redis')">
+                    <i class="fa-solid fa-database" style="color: #ef4444;"></i>
+                    <span>Redis Server</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('kubernetes')">
+                    <i class="fa-solid fa-dharmachakra" style="color: #326ce5;"></i>
+                    <span>Kubernatives</span>
                 </div>
             </div>
         </div>
@@ -764,12 +780,13 @@
             <div class="resize-handle" onmousedown="startResize(event, 'cleaner')"></div>
         </div>
 
-        <!-- 10. DevOps & Deployment Center Window -->
-        <div class="window" id="win-deploy" style="top: 150px; left: 200px; width: 660px; height: 480px; z-index: 79; display: none;">
-            <div class="window-header" onmousedown="startDrag(event, 'deploy')">
+        <!-- 10. Docker Desktop Window -->
+        <div class="window" id="win-deploy" style="top: 100px; left: 160px; width: 860px; height: 560px; z-index: 79; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'deploy')" style="background: #1b2a4a; border-bottom: 1px solid rgba(29,155,240,0.15);">
                 <div class="window-title">
-                    <i class="fa-solid fa-server"></i>
-                    <span>DevOps & Deployment Center</span>
+                    <i class="fa-brands fa-docker" style="color: #1d9bf0; font-size: 1.1rem;"></i>
+                    <span style="font-weight: 600; letter-spacing: 0.3px;">Docker Desktop</span>
+                    <span id="docker-engine-badge" style="font-size: 0.6rem; background: rgba(29,155,240,0.15); color: #1d9bf0; padding: 2px 8px; border-radius: 10px; margin-left: 6px; font-weight: 500;">Engine: Checking...</span>
                 </div>
                 <div class="window-controls">
                     <button class="win-btn win-min" onclick="minimizeWindow('deploy')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
@@ -778,110 +795,237 @@
                 </div>
             </div>
             <div class="window-body" style="padding: 0; display: flex; height: calc(100% - 40px); overflow: hidden;">
-                <!-- Sidebar -->
-                <div class="deploy-sidebar" style="width: 180px; background: rgba(0, 0, 0, 0.2); border-right: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 0.2rem; padding: 0.8rem;">
-                    <div class="deploy-tab-btn active" id="deploy-tab-overview" onclick="switchDeployTab('overview')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: #fff; cursor: pointer; background: rgba(233, 84, 32, 0.1);">
-                        <i class="fa-solid fa-circle-info" style="color: var(--accent-orange); width: 16px; text-align: center;"></i>
-                        <span>Overview</span>
+                <!-- Docker Sidebar -->
+                <div class="docker-sidebar" style="width: 56px; background: #0f1729; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px;">
+                    <!-- Docker Logo -->
+                    <div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px;">
+                        <i class="fa-brands fa-docker" style="font-size: 1.5rem; color: #1d9bf0;"></i>
                     </div>
-                    <div class="deploy-tab-btn" id="deploy-tab-env" onclick="switchDeployTab('env')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
-                        <i class="fa-solid fa-sliders" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
-                        <span>Environment (.env)</span>
+                    <div class="docker-nav-btn active" id="docker-nav-containers" onclick="switchDockerView('containers')" title="Containers" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: #fff; background: rgba(29,155,240,0.15); transition: all 0.2s;">
+                        <i class="fa-solid fa-cube" style="font-size: 0.95rem;"></i>
                     </div>
-                    <div class="deploy-tab-btn" id="deploy-tab-nginx" onclick="switchDeployTab('nginx')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
-                        <i class="fa-solid fa-network-wired" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
-                        <span>Nginx Gateway</span>
+                    <div class="docker-nav-btn" id="docker-nav-images" onclick="switchDockerView('images')" title="Images" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-layer-group" style="font-size: 0.95rem;"></i>
                     </div>
-                    <div class="deploy-tab-btn" id="deploy-tab-logs" onclick="switchDeployTab('logs')" style="display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
-                        <i class="fa-solid fa-terminal" style="color: var(--text-secondary); width: 16px; text-align: center;"></i>
-                        <span>Service Logs</span>
+                    <div class="docker-nav-btn" id="docker-nav-volumes" onclick="switchDockerView('volumes')" title="Volumes" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-hard-drive" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="docker-nav-btn" id="docker-nav-compose" onclick="switchDockerView('compose')" title="Compose" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-cubes" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <!-- Spacer -->
+                    <div style="flex: 1;"></div>
+                    <div class="docker-nav-btn" id="docker-nav-logs" onclick="switchDockerView('logs')" title="Logs" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-scroll" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="docker-nav-btn" id="docker-nav-settings" onclick="switchDockerView('settings')" title="Settings" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-gear" style="font-size: 0.95rem;"></i>
                     </div>
                 </div>
-                
-                <!-- Content Area -->
-                <div class="deploy-content" style="flex: 1; padding: 1.2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; background: rgba(12, 14, 25, 0.4);">
-                    
-                    <!-- TAB 1: Overview -->
-                    <div id="deploy-pane-overview" class="deploy-pane" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
-                        <div>
-                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem; color: #fff;">WSL / Server Service Status</h3>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem;">
-                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px;">
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Systemd Service</div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.3rem;">
-                                        <span id="dep-systemd-status" style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">Checking...</span>
-                                        <button class="fm-btn" onclick="runDeployCommand('systemctl_status')" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; flex: none;">Check</button>
+
+                <!-- Main Content Area -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0d1321;">
+
+                    <!-- VIEW: Containers -->
+                    <div id="docker-view-containers" class="docker-view" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                        <!-- Header Bar -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Containers</h3>
+                                <span id="docker-container-count" style="font-size: 0.7rem; background: rgba(29,155,240,0.12); color: #1d9bf0; padding: 2px 10px; border-radius: 10px;">0</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="display: flex; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0 10px; gap: 6px;">
+                                    <i class="fa-solid fa-magnifying-glass" style="color: rgba(255,255,255,0.3); font-size: 0.75rem;"></i>
+                                    <input type="text" id="docker-container-search" placeholder="Search containers..." oninput="filterDockerContainers()" style="background: transparent; border: none; padding: 6px 0; font-size: 0.8rem; color: #fff; outline: none; width: 160px; font-family: inherit;">
+                                </div>
+                                <button onclick="refreshDockerContainers()" style="background: rgba(29,155,240,0.12); border: 1px solid rgba(29,155,240,0.25); color: #1d9bf0; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: inherit; transition: all 0.2s;" onmouseover="this.style.background='rgba(29,155,240,0.25)'" onmouseout="this.style.background='rgba(29,155,240,0.12)'">
+                                    <i class="fa-solid fa-arrow-rotate-right" style="font-size: 0.7rem;"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Containers Table Header -->
+                        <div style="display: grid; grid-template-columns: 28px 2fr 1.2fr 1fr 1fr 100px; align-items: center; padding: 8px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex: none; background: rgba(0,0,0,0.15);">
+                            <span></span>
+                            <span>Name</span>
+                            <span>Image</span>
+                            <span>Status</span>
+                            <span>Ports</span>
+                            <span style="text-align: right;">Actions</span>
+                        </div>
+                        <!-- Containers List -->
+                        <div id="docker-containers-body" style="flex: 1; overflow-y: auto; padding: 0;">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                                <i class="fa-brands fa-docker" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                                <span>Loading containers...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Images -->
+                    <div id="docker-view-images" class="docker-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Images</h3>
+                                <span id="docker-image-count" style="font-size: 0.7rem; background: rgba(29,155,240,0.12); color: #1d9bf0; padding: 2px 10px; border-radius: 10px;">0</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button onclick="dockerPullImage()" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); color: #10b981; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: inherit; transition: all 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.25)'" onmouseout="this.style.background='rgba(16,185,129,0.12)'">
+                                    <i class="fa-solid fa-download" style="font-size: 0.7rem;"></i> Pull Image
+                                </button>
+                                <button onclick="refreshDockerImages()" style="background: rgba(29,155,240,0.12); border: 1px solid rgba(29,155,240,0.25); color: #1d9bf0; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: inherit; transition: all 0.2s;" onmouseover="this.style.background='rgba(29,155,240,0.25)'" onmouseout="this.style.background='rgba(29,155,240,0.12)'">
+                                    <i class="fa-solid fa-arrow-rotate-right" style="font-size: 0.7rem;"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 28px 2fr 1fr 1fr 1fr 80px; align-items: center; padding: 8px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex: none; background: rgba(0,0,0,0.15);">
+                            <span></span>
+                            <span>Repository</span>
+                            <span>Tag</span>
+                            <span>Image ID</span>
+                            <span>Size</span>
+                            <span style="text-align: right;">Actions</span>
+                        </div>
+                        <div id="docker-images-body" style="flex: 1; overflow-y: auto; padding: 0;">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                                <i class="fa-solid fa-layer-group" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                                <span>Loading images...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Volumes -->
+                    <div id="docker-view-volumes" class="docker-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Volumes</h3>
+                                <span id="docker-volume-count" style="font-size: 0.7rem; background: rgba(29,155,240,0.12); color: #1d9bf0; padding: 2px 10px; border-radius: 10px;">0</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button onclick="dockerCreateVolume()" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); color: #10b981; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: inherit; transition: all 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.25)'" onmouseout="this.style.background='rgba(16,185,129,0.12)'">
+                                    <i class="fa-solid fa-plus" style="font-size: 0.7rem;"></i> Create Volume
+                                </button>
+                                <button onclick="refreshDockerVolumes()" style="background: rgba(29,155,240,0.12); border: 1px solid rgba(29,155,240,0.25); color: #1d9bf0; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: inherit; transition: all 0.2s;" onmouseover="this.style.background='rgba(29,155,240,0.25)'" onmouseout="this.style.background='rgba(29,155,240,0.12)'">
+                                    <i class="fa-solid fa-arrow-rotate-right" style="font-size: 0.7rem;"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 28px 2fr 1.5fr 1fr 80px; align-items: center; padding: 8px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex: none; background: rgba(0,0,0,0.15);">
+                            <span></span>
+                            <span>Name</span>
+                            <span>Mount Point</span>
+                            <span>Driver</span>
+                            <span style="text-align: right;">Actions</span>
+                        </div>
+                        <div id="docker-volumes-body" style="flex: 1; overflow-y: auto; padding: 0;">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                                <i class="fa-solid fa-hard-drive" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                                <span>Loading volumes...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Compose -->
+                    <div id="docker-view-compose" class="docker-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Docker Compose</h3>
+                        </div>
+                        <div style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                            <!-- Compose Project Card -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fa-solid fa-cubes" style="color: #1d9bf0; font-size: 1rem;"></i>
+                                        <span style="font-size: 0.9rem; font-weight: 600; color: #fff;">ubuntu-web-os</span>
+                                        <span id="docker-compose-status" style="font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; background: rgba(107,114,128,0.2); color: #9ca3af;">Checking...</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px;">
+                                        <button onclick="runDeployCommand('compose_up')" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(16,185,129,0.25)'" onmouseout="this.style.background='rgba(16,185,129,0.12)'"><i class="fa-solid fa-play" style="font-size: 0.65rem;"></i> Up</button>
+                                        <button onclick="runDeployCommand('compose_down')" style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(239,68,68,0.25)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'"><i class="fa-solid fa-stop" style="font-size: 0.65rem;"></i> Down</button>
+                                        <button onclick="runDeployCommand('compose_build')" style="background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color: #f59e0b; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(245,158,11,0.25)'" onmouseout="this.style.background='rgba(245,158,11,0.12)'"><i class="fa-solid fa-hammer" style="font-size: 0.65rem;"></i> Build</button>
                                     </div>
                                 </div>
-                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px;">
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Docker Daemon</div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.3rem;">
-                                        <span id="dep-docker-status" style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">Checking...</span>
-                                        <button class="fm-btn" onclick="runDeployCommand('docker_status')" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; flex: none;">Check</button>
+                                <div style="padding: 14px 16px;">
+                                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-bottom: 8px;">PROJECT PATH</div>
+                                    <div style="font-family: var(--font-mono); font-size: 0.8rem; color: rgba(255,255,255,0.7); background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 6px;">/mnt/d/ubuntu-web-os</div>
+                                </div>
+                                <div style="padding: 0 16px 14px 16px;">
+                                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-bottom: 8px;">COMPOSE SERVICES</div>
+                                    <div id="docker-compose-services" style="font-family: var(--font-mono); font-size: 0.8rem; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.2); padding: 10px 12px; border-radius: 6px; max-height: 140px; overflow-y: auto; white-space: pre-wrap;">
+                                        Loading compose configuration...
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div>
-                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.6rem; color: #fff;">Container & Compose Control</h3>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem;">
-                                <button class="fm-btn" onclick="runDeployCommand('compose_up')" style="padding: 0.5rem;"><i class="fa-solid fa-play" style="color: #10b981;"></i> Docker Compose Up</button>
-                                <button class="fm-btn" onclick="runDeployCommand('compose_down')" style="padding: 0.5rem;"><i class="fa-solid fa-stop" style="color: #ef4444;"></i> Docker Compose Down</button>
-                                <button class="fm-btn" onclick="runDeployCommand('compose_build')" style="padding: 0.5rem;"><i class="fa-solid fa-wrench" style="color: #f59e0b;"></i> Rebuild Image</button>
-                                <button class="fm-btn" onclick="runDeployCommand('docker_prune')" style="padding: 0.5rem;"><i class="fa-solid fa-trash-can" style="color: var(--text-muted);"></i> Prune Containers</button>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem; color: #fff;">Running Containers</h3>
-                            <div id="dep-containers-list" style="background: #040508; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.5rem; min-height: 80px; font-family: var(--font-mono); font-size: 0.75rem; color: #38bdf8; white-space: pre-wrap;">
-                                Loading containers info...
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- TAB 2: Env Configuration -->
-                    <div id="deploy-pane-env" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
-                        <div>
-                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">Edit Environment Variables</h3>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                Modify the credentials and configurations saved in your `.env` deployment file.
-                            </div>
-                            <textarea id="dep-env-editor" class="editor-textarea" style="height: 180px; font-size: 0.8rem; color: #a7f3d0; margin-bottom: 0.6rem;"></textarea>
-                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                                <button class="fm-btn" onclick="fetchDeployEnv()" style="flex: none; width: 120px;"><i class="fa-solid fa-rotate"></i> Reload</button>
-                                <button class="fm-btn" onclick="saveDeployEnv()" style="flex: none; width: 120px; background: var(--accent-orange); color: white; border: none;"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+                            <!-- Env Editor -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <i class="fa-solid fa-sliders" style="color: #a78bfa; font-size: 0.85rem;"></i>
+                                        <span style="font-size: 0.85rem; font-weight: 500; color: #fff;">Environment Variables (.env)</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px;">
+                                        <button onclick="fetchDeployEnv()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; font-family: inherit;"><i class="fa-solid fa-rotate" style="font-size: 0.65rem;"></i> Reload</button>
+                                        <button onclick="saveDeployEnv()" style="background: rgba(29,155,240,0.15); border: 1px solid rgba(29,155,240,0.3); color: #1d9bf0; padding: 4px 10px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; font-family: inherit;"><i class="fa-solid fa-floppy-disk" style="font-size: 0.65rem;"></i> Save</button>
+                                    </div>
+                                </div>
+                                <div style="padding: 10px 16px 14px;">
+                                    <textarea id="dep-env-editor" style="width: 100%; height: 100px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 0.8rem; color: #a7f3d0; resize: vertical; outline: none; box-sizing: border-box;" spellcheck="false"></textarea>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- TAB 3: Nginx Gateway -->
-                    <div id="deploy-pane-nginx" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
-                        <div>
-                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem;">Nginx Proxy Configuration</h3>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                Preview `nginx.conf` reverse-proxy settings template.
-                            </div>
-                            <textarea id="dep-nginx-editor" class="editor-textarea" style="height: 180px; font-size: 0.8rem; color: #93c5fd; margin-bottom: 0.6rem;"></textarea>
-                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                                <button class="fm-btn" onclick="fetchDeployNginx()" style="flex: none; width: 120px;"><i class="fa-solid fa-rotate"></i> Reload</button>
-                                <button class="fm-btn" onclick="runDeployCommand('nginx_test')" style="flex: none; width: 140px;"><i class="fa-solid fa-square-check"></i> Test Nginx syntax</button>
+                    <!-- VIEW: Logs -->
+                    <div id="docker-view-logs" class="docker-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Logs</h3>
+                            <div style="display: flex; gap: 6px;">
+                                <button onclick="fetchDeployLogs('docker')" style="background: rgba(29,155,240,0.12); border: 1px solid rgba(29,155,240,0.25); color: #1d9bf0; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(29,155,240,0.25)'" onmouseout="this.style.background='rgba(29,155,240,0.12)'"><i class="fa-brands fa-docker" style="font-size: 0.7rem;"></i> Compose Logs</button>
+                                <button onclick="fetchDeployLogs('systemd')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'"><i class="fa-solid fa-server" style="font-size: 0.7rem;"></i> Systemd Logs</button>
+                                <button onclick="dockerPruneLogs()" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #ef4444; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'"><i class="fa-solid fa-trash" style="font-size: 0.65rem;"></i> Prune</button>
                             </div>
                         </div>
+                        <div id="dep-logs-console" style="flex: 1; overflow-y: auto; background: #060a14; padding: 14px 20px; font-family: var(--font-mono); font-size: 0.75rem; color: #a7f3d0; white-space: pre-wrap; line-height: 1.5;">Click a log source above to stream logs.</div>
                     </div>
 
-                    <!-- TAB 4: Service Logs -->
-                    <div id="deploy-pane-logs" class="deploy-pane" style="display: none; flex-direction: column; gap: 0.8rem; width: 100%;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="font-size: 0.9rem; font-weight: 600; color: #fff;">Docker & Service Logs</h3>
-                            <div style="display: flex; gap: 0.4rem;">
-                                <button class="fm-btn" onclick="fetchDeployLogs('docker')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; flex: none;">Docker Compose Logs</button>
-                                <button class="fm-btn" onclick="fetchDeployLogs('systemd')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; flex: none;">Systemd Logs</button>
-                            </div>
+                    <!-- VIEW: Settings -->
+                    <div id="docker-view-settings" class="docker-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                        <div style="display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex: none;">
+                            <h3 style="font-size: 1rem; font-weight: 600; color: #fff; margin: 0;">Docker Settings</h3>
                         </div>
-                        <div id="dep-logs-console" style="height: 220px; overflow-y: auto; background: #040508; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.6rem; font-family: var(--font-mono); font-size: 0.75rem; color: #a7f3d0; white-space: pre-wrap;">
-                            Click one of the log query buttons above.
+                        <div style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                            <!-- Docker Engine Info -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 16px;">
+                                <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 12px;">Docker Engine</div>
+                                <div id="docker-engine-info" style="font-family: var(--font-mono); font-size: 0.8rem; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; max-height: 160px; overflow-y: auto; white-space: pre-wrap;">
+                                    Loading docker info...
+                                </div>
+                            </div>
+                            <!-- Danger Zone -->
+                            <div style="background: rgba(239,68,68,0.04); border: 1px solid rgba(239,68,68,0.15); border-radius: 10px; padding: 16px;">
+                                <div style="font-size: 0.85rem; font-weight: 600; color: #ef4444; margin-bottom: 12px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i>Danger Zone</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    <button onclick="runDeployCommand('docker_prune')" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'"><i class="fa-solid fa-broom" style="font-size: 0.7rem;"></i> System Prune</button>
+                                    <button onclick="dockerPruneVolumes()" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'"><i class="fa-solid fa-hard-drive" style="font-size: 0.7rem;"></i> Prune Volumes</button>
+                                    <button onclick="dockerPruneImages()" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'"><i class="fa-solid fa-layer-group" style="font-size: 0.7rem;"></i> Prune Images</button>
+                                </div>
+                            </div>
+                            <!-- Nginx Config -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <i class="fa-solid fa-shield-halved" style="color: #10b981; font-size: 0.85rem;"></i>
+                                        <span style="font-size: 0.85rem; font-weight: 500; color: #fff;">Nginx Reverse Proxy</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px;">
+                                        <button onclick="fetchDeployNginx()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; font-family: inherit;"><i class="fa-solid fa-rotate" style="font-size: 0.65rem;"></i> Reload</button>
+                                        <button onclick="runDeployCommand('nginx_test')" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); color: #10b981; padding: 4px 10px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; font-family: inherit;"><i class="fa-solid fa-check" style="font-size: 0.65rem;"></i> Test Config</button>
+                                    </div>
+                                </div>
+                                <div style="padding: 10px 16px 14px;">
+                                    <textarea id="dep-nginx-editor" style="width: 100%; height: 120px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 0.8rem; color: #93c5fd; resize: vertical; outline: none; box-sizing: border-box;" spellcheck="false"></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1312,6 +1456,284 @@
                 </div>
             </div>
             <div class="resize-handle" onmousedown="startResize(event, 'tunnels')"></div>
+        </div>
+
+        <!-- 16. Redis Server Window -->
+        <div class="window" id="win-redis" style="top: 150px; left: 250px; width: 800px; height: 500px; z-index: 86; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'redis')">
+                <div class="window-title">
+                    <i class="fa-solid fa-database" style="color: #ef4444;"></i>
+                    <span>Redis Server Management</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('redis')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('redis')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('redis')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; overflow: hidden; background: #0f1015; flex: 1; min-height: 0;">
+                <div style="display: flex; gap: 1rem; background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); align-items: center; flex-shrink: 0;">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #fff; font-size: 0.95rem;">Service Status</h4>
+                        <div id="redis-status-badge" style="font-size: 0.85rem; color: #9ca3af;">Checking...</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button onclick="redisAction('start')" style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #10b981; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"><i class="fa-solid fa-play"></i> Start</button>
+                        <button onclick="redisAction('stop')" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"><i class="fa-solid fa-stop"></i> Stop</button>
+                        <button onclick="redisAction('restart')" style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"><i class="fa-solid fa-rotate-right"></i> Restart</button>
+                    </div>
+                </div>
+
+                <div style="flex: 1; display: flex; gap: 1rem; overflow: hidden; min-height: 0;">
+                    <div style="flex: 2; display: flex; flex-direction: column; background: #000; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; min-height: 0;">
+                        <div style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
+                            <i class="fa-solid fa-terminal"></i> redis-cli console
+                        </div>
+                        <div id="redis-cli-output" style="flex: 1; padding: 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: #a3be8c; overflow-y: auto; white-space: pre-wrap; min-height: 0;">Welcome to Redis Server Management. Type a command below.</div>
+                        <div style="display: flex; border-top: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+                            <span style="padding: 0.6rem 0.5rem 0.6rem 1rem; color: #ef4444; font-family: var(--font-mono); font-size: 0.85rem;">127.0.0.1:6379></span>
+                            <input type="text" id="redis-cli-input" onkeydown="handleRedisCli(event)" autocomplete="off" style="flex: 1; background: transparent; border: none; color: #fff; font-family: var(--font-mono); font-size: 0.85rem; padding: 0.6rem; outline: none;" placeholder="e.g. PING, GET mykey">
+                        </div>
+                    </div>
+                    
+                    <div style="flex: 1; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; overflow: hidden;">
+                        <div style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                            <i class="fa-solid fa-book"></i> Top 30 Commands
+                        </div>
+                        <div style="flex: 1; padding: 0.5rem 1rem; overflow-y: auto; font-family: var(--font-mono); font-size: 0.75rem; color: #a78bfa;">
+                            <ul style="margin: 0; padding-left: 0.5rem; list-style-type: square; line-height: 1.7;">
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">PING</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">SET key value</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">GET key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">DEL key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">EXISTS key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">EXPIRE key sec</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">KEYS *</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">INCR key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">DECR key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">HSET hash key val</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">HGET hash key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">HGETALL hash</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">HDEL hash key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">LPUSH list val</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">RPUSH list val</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">LPOP list</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">RPOP list</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">LRANGE list 0 -1</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">SADD set member</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">SMEMBERS set</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">SREM set member</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">ZADD zset sc mem</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">ZRANGE zset 0 -1</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">ZREM zset member</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">TYPE key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">RENAME key new</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">TTL key</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">FLUSHALL</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">FLUSHDB</li>
+                                <li style="cursor: pointer; user-select: none;" onclick="document.getElementById('redis-cli-input').value=this.innerText; document.getElementById('redis-cli-input').focus();">INFO</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'redis')"></div>
+        </div>
+
+        <!-- 17. Kubernetes (Kubernatives) Window -->
+        <div class="window" id="win-kubernetes" style="top: 100px; left: 180px; width: 860px; height: 560px; z-index: 87; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'kubernetes')" style="background: #1b2a4a; border-bottom: 1px solid rgba(50,108,229,0.15);">
+                <div class="window-title">
+                    <i class="fa-solid fa-dharmachakra" style="color: #326ce5; font-size: 1.1rem;"></i>
+                    <span style="font-weight: 600; letter-spacing: 0.3px;">Kubernatives Dashboard</span>
+                    <span id="k8s-cluster-badge" style="font-size: 0.65rem; background: rgba(50,108,229,0.15); color: #326ce5; padding: 2px 8px; border-radius: 10px; margin-left: 6px; font-weight: 500;">Cluster: Checking...</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('kubernetes')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('kubernetes')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('kubernetes')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; height: calc(100% - 40px); overflow: hidden; background: #0f1321;">
+                <!-- K8s Sidebar -->
+                <div class="k8s-sidebar" style="width: 56px; background: #0f1729; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; flex-shrink: 0;">
+                    <!-- Logo -->
+                    <div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px;">
+                        <i class="fa-solid fa-dharmachakra" style="font-size: 1.5rem; color: #326ce5;"></i>
+                    </div>
+                    <div class="k8s-nav-btn active" id="k8s-nav-overview" onclick="switchK8sView('overview')" title="Cluster Overview" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: #fff; background: rgba(50,108,229,0.15); transition: all 0.2s;">
+                        <i class="fa-solid fa-chart-pie" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="k8s-nav-btn" id="k8s-nav-pods" onclick="switchK8sView('pods')" title="Pods" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-cubes" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="k8s-nav-btn" id="k8s-nav-deployments" onclick="switchK8sView('deployments')" title="Deployments" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-sitemap" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="k8s-nav-btn" id="k8s-nav-services" onclick="switchK8sView('services')" title="Services" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-network-wired" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <div class="k8s-nav-btn" id="k8s-nav-yaml" onclick="switchK8sView('yaml')" title="YAML Manifest Apply" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-file-code" style="font-size: 0.95rem;"></i>
+                    </div>
+                    <!-- Spacer -->
+                    <div style="flex: 1;"></div>
+                    <div class="k8s-nav-btn" id="k8s-nav-cli" onclick="switchK8sView('cli')" title="kubectl CLI Console" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); transition: all 0.2s;">
+                        <i class="fa-solid fa-terminal" style="font-size: 0.95rem;"></i>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0d1321;">
+                    <!-- Filter and Namespace Bar -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); flex-shrink: 0;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Namespace:</span>
+                            <select id="k8s-namespace-select" onchange="refreshK8sData()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; outline: none; cursor: pointer;">
+                                <option value="all">All Namespaces</option>
+                                <option value="default">default</option>
+                                <option value="kube-system">kube-system</option>
+                                <option value="kube-public">kube-public</option>
+                                <option value="demo">demo</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="refreshK8sData()" class="fm-btn" style="background: rgba(50,108,229,0.12); border-color: rgba(50,108,229,0.25); color: #326ce5; padding: 4px 10px; font-size: 0.75rem; max-width: 90px; flex: none;">
+                                <i class="fa-solid fa-arrow-rotate-right"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Overview -->
+                    <div id="k8s-view-overview" class="k8s-view" style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding: 20px; gap: 20px;">
+                        <!-- Top Cards Grid -->
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                            <div class="stat-card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">
+                                    <span>CLUSTER NODES</span>
+                                    <i class="fa-solid fa-server" style="color: #326ce5;"></i>
+                                </div>
+                                <div id="k8s-node-count-val" style="font-size: 1.4rem; font-weight: 700; color: #fff;">0 / 0 Ready</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary);" id="k8s-cluster-version">API Version: v1.30.0</div>
+                            </div>
+                            <div class="stat-card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">
+                                    <span>RUNNING PODS</span>
+                                    <i class="fa-solid fa-cubes" style="color: #10b981;"></i>
+                                </div>
+                                <div id="k8s-pod-count-val" style="font-size: 1.4rem; font-weight: 700; color: #fff;">0 Running</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary);" id="k8s-pods-unhealthy">0 Unhealthy Pods</div>
+                            </div>
+                            <div class="stat-card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">
+                                    <span>DEPLOYMENTS & SERVICES</span>
+                                    <i class="fa-solid fa-sitemap" style="color: #f59e0b;"></i>
+                                </div>
+                                <div id="k8s-deploy-count-val" style="font-size: 1.4rem; font-weight: 700; color: #fff;">0 / 0 Active</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary);" id="k8s-services-count">0 Services exposed</div>
+                            </div>
+                        </div>
+
+                        <!-- Nodes Section -->
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;">
+                            <div style="padding: 12px 16px; background: rgba(0,0,0,0.15); border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; font-weight: 600; color: #fff; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Cluster Nodes</span>
+                            </div>
+                            <div style="overflow-x: auto;">
+                                <table class="task-table" style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                            <th style="padding: 10px 16px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Name</th>
+                                            <th style="padding: 10px 16px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Status</th>
+                                            <th style="padding: 10px 16px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Roles</th>
+                                            <th style="padding: 10px 16px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Version</th>
+                                            <th style="padding: 10px 16px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">CPU / MEM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="k8s-nodes-list-body">
+                                        <!-- Node rows populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Pods -->
+                    <div id="k8s-view-pods" class="k8s-view" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                        <div style="padding: 10px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex-shrink: 0; background: rgba(0,0,0,0.15); display: grid; grid-template-columns: 1fr 1.8fr 1fr 0.8fr 1fr 1.2fr 100px; gap: 10px; align-items: center;">
+                            <span>Namespace</span>
+                            <span>Pod Name</span>
+                            <span>Status</span>
+                            <span>Restarts</span>
+                            <span>IP</span>
+                            <span>Node</span>
+                            <span style="text-align: right;">Actions</span>
+                        </div>
+                        <div id="k8s-pods-list-body" style="flex: 1; overflow-y: auto;">
+                            <!-- Pods populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Deployments -->
+                    <div id="k8s-view-deployments" class="k8s-view" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                        <div style="padding: 10px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex-shrink: 0; background: rgba(0,0,0,0.15); display: grid; grid-template-columns: 1.2fr 2fr 1fr 1fr 1fr 1.2fr; gap: 10px; align-items: center;">
+                            <span>Namespace</span>
+                            <span>Deployment Name</span>
+                            <span>Ready</span>
+                            <span>Up-to-date</span>
+                            <span>Available</span>
+                            <span style="text-align: right;">Scale / Actions</span>
+                        </div>
+                        <div id="k8s-deployments-list-body" style="flex: 1; overflow-y: auto;">
+                            <!-- Deployments populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- VIEW: Services -->
+                    <div id="k8s-view-services" class="k8s-view" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                        <div style="padding: 10px 20px; font-size: 0.7rem; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.04); flex-shrink: 0; background: rgba(0,0,0,0.15); display: grid; grid-template-columns: 1.2fr 2fr 1fr 1.2fr 1.2fr 1.5fr; gap: 10px; align-items: center;">
+                            <span>Namespace</span>
+                            <span>Service Name</span>
+                            <span>Type</span>
+                            <span>Cluster IP</span>
+                            <span>External IP</span>
+                            <span>Ports</span>
+                        </div>
+                        <div id="k8s-services-list-body" style="flex: 1; overflow-y: auto;">
+                            <!-- Services populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- VIEW: YAML Manifest Editor -->
+                    <div id="k8s-view-yaml" class="k8s-view" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.1); flex-shrink: 0;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fa-solid fa-file-code"></i> Apply YAML Manifest</span>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="k8sLoadYamlTemplate()" class="fm-btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 4px 10px; font-size: 0.75rem; flex: none;">
+                                    Load Sample Pod
+                                </button>
+                                <button onclick="k8sApplyYaml()" class="fm-btn" style="background: linear-gradient(135deg, #326ce5, #1d4ed8); color: #fff; padding: 4px 12px; font-size: 0.75rem; font-weight: 600; flex: none; border: none; box-shadow: 0 0 10px rgba(50,108,229,0.3);">
+                                    Apply Manifest
+                                </button>
+                            </div>
+                        </div>
+                        <div id="k8s-monaco-container" style="flex: 1; width: 100%; background: #1e1e1e;"></div>
+                    </div>
+
+                    <!-- VIEW: CLI Console -->
+                    <div id="k8s-view-cli" class="k8s-view" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                        <div style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
+                            <i class="fa-solid fa-terminal"></i> kubectl client terminal
+                        </div>
+                        <div id="k8s-cli-output" style="flex: 1; padding: 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: #88c0d0; overflow-y: auto; white-space: pre-wrap; background: #040508;">Welcome to Kubernatives CLI. Type `kubectl get pods`, `kubectl cluster-info` etc. below.</div>
+                        <div style="display: flex; border-top: 1px solid rgba(255,255,255,0.1); background: #000; flex-shrink: 0; align-items: center;">
+                            <span style="padding: 0.6rem 0.5rem 0.6rem 1rem; color: #326ce5; font-family: var(--font-mono); font-size: 0.85rem; font-weight: bold; white-space: nowrap;">root@k8s-wsl:~$</span>
+                            <input type="text" id="k8s-cli-input" onkeydown="handleK8sCli(event)" autocomplete="off" style="flex: 1; background: transparent; border: none; color: #fff; font-family: var(--font-mono); font-size: 0.85rem; padding: 0.6rem; outline: none;" placeholder="e.g. kubectl get pods, kubectl describe node">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'kubernetes')"></div>
         </div>
 
     <!-- Login Modal -->

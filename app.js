@@ -259,7 +259,9 @@ const windows = {
     translator: { active: false, min: false, max: false, x: 200, y: 100, w: 780, h: 520, icon: 'fa-language', name: 'Translator' },
     video: { active: false, min: false, max: false, x: 250, y: 150, w: 640, h: 440, icon: 'fa-film', name: 'Video Player' },
     music: { active: false, min: false, max: false, x: 300, y: 200, w: 400, h: 500, icon: 'fa-music', name: 'Music Player' },
-    tunnels: { active: false, min: false, max: false, x: 180, y: 180, w: 640, h: 400, icon: 'fa-globe', name: 'Active Tunnels' }
+    tunnels: { active: false, min: false, max: false, x: 180, y: 180, w: 640, h: 400, icon: 'fa-globe', name: 'Active Tunnels' },
+    redis: { active: false, min: false, max: false, x: 320, y: 190, w: 660, h: 460, icon: 'fa-database', name: 'Redis Server' },
+    kubernetes: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-dharmachakra', name: 'Kubernatives' }
 };
 
 let highestZ = 100;
@@ -297,11 +299,15 @@ function openWindow(winId) {
     if (winId === 'tasks') {
         refreshProcesses();
     } else if (winId === 'deploy') {
-        refreshDeployOverview();
+        switchDockerView('containers');
     } else if (winId === 'browser') {
         initBrowserIframe();
     } else if (winId === 'tunnels') {
         refreshTunnels();
+    } else if (winId === 'redis') {
+        checkRedisStatus();
+    } else if (winId === 'kubernetes') {
+        initKubernetesApp();
     }
 }
 
@@ -2947,114 +2953,351 @@ function initDraggableShortcuts() {
     });
 }
 
-// ================= DevOps & Deployment Center =================
-function switchDeployTab(tabId) {
-    document.querySelectorAll('.deploy-tab-btn').forEach(btn => {
+// ================= Docker Desktop Controller =================
+let allDockerContainers = [];
+
+function switchDockerView(viewId) {
+    document.querySelectorAll('.docker-nav-btn').forEach(btn => {
         btn.classList.remove('active');
         btn.style.background = 'transparent';
-        btn.style.color = 'var(--text-secondary)';
-        const icon = btn.querySelector('i');
-        if (icon) icon.style.color = 'var(--text-secondary)';
+        btn.style.color = 'rgba(255,255,255,0.45)';
     });
 
-    const activeBtn = document.getElementById(`deploy-tab-${tabId}`);
+    const activeBtn = document.getElementById(`docker-nav-${viewId}`);
     if (activeBtn) {
         activeBtn.classList.add('active');
-        activeBtn.style.background = 'rgba(233, 84, 32, 0.1)';
+        activeBtn.style.background = 'rgba(29,155,240,0.15)';
         activeBtn.style.color = '#fff';
-        const icon = activeBtn.querySelector('i');
-        if (icon) icon.style.color = 'var(--accent-orange)';
     }
 
-    document.querySelectorAll('.deploy-pane').forEach(pane => {
-        pane.style.display = 'none';
+    document.querySelectorAll('.docker-view').forEach(view => {
+        view.style.display = 'none';
     });
 
-    const activePane = document.getElementById(`deploy-pane-${tabId}`);
-    if (activePane) {
-        activePane.style.display = 'flex';
+    const activeView = document.getElementById(`docker-view-${viewId}`);
+    if (activeView) {
+        activeView.style.display = 'flex';
     }
 
-    if (tabId === 'env') {
+    // Trigger data fetch for the active view
+    if (viewId === 'containers') refreshDockerContainers();
+    else if (viewId === 'images') refreshDockerImages();
+    else if (viewId === 'volumes') refreshDockerVolumes();
+    else if (viewId === 'compose') {
         fetchDeployEnv();
-    } else if (tabId === 'nginx') {
+        fetchDockerComposeStatus();
+    }
+    else if (viewId === 'settings') {
+        fetchDockerEngineInfo();
         fetchDeployNginx();
     }
 }
 
-async function refreshDeployOverview() {
-    const sysdEl = document.getElementById('dep-systemd-status');
-    const dockEl = document.getElementById('dep-docker-status');
-    const listEl = document.getElementById('dep-containers-list');
+async function fetchDockerEngineInfo() {
+    const badgeEl = document.getElementById('docker-engine-badge');
+    const infoEl = document.getElementById('docker-engine-info');
+    
+    if (badgeEl) badgeEl.textContent = 'Engine: Checking...';
+    if (infoEl) infoEl.textContent = 'Querying docker daemon...';
 
-    if (sysdEl) sysdEl.textContent = 'Querying...';
-    if (dockEl) dockEl.textContent = 'Querying...';
-    if (listEl) listEl.textContent = 'Querying running containers...';
-
-    // Systemd Status
     try {
-        const res = await apiCommand('run_raw', { command: 'systemctl status webos.service | grep Active || echo "Inactive"' });
-        if (sysdEl) {
-            const out = res?.stdout || '';
-            if (out.includes('running') || out.includes('active')) {
-                sysdEl.innerHTML = '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> Active (Running)</span>';
-            } else {
-                sysdEl.innerHTML = '<span style="color: #6b7280;"><i class="fa-solid fa-circle-stop"></i> Inactive</span>';
-            }
+        const checkRes = await apiCommand('run_raw', { command: 'command -v docker &>/dev/null && echo "Installed" || echo "Missing"' });
+        if ((checkRes?.stdout || '').trim() === 'Missing') {
+            if (badgeEl) badgeEl.innerHTML = '<span style="color:#ef4444;">Engine: Missing/WSL Error</span>';
+            if (infoEl) infoEl.textContent = 'Docker is not installed or WSL integration is not enabled.';
+            return;
         }
+
+        const infoRes = await apiCommand('run_raw', { command: 'docker info' });
+        if (infoRes.exit_code !== 0) {
+            if (badgeEl) badgeEl.innerHTML = '<span style="color:#f59e0b;">Engine: Stopped</span>';
+            if (infoEl) infoEl.textContent = 'Docker daemon is not running. Please start Docker Desktop.';
+            return;
+        }
+
+        if (badgeEl) badgeEl.innerHTML = '<span style="color:#10b981;">Engine: Running</span>';
+        if (infoEl) infoEl.textContent = infoRes.stdout || 'Information unavailable.';
+
     } catch (e) {
-        if (sysdEl) sysdEl.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+        if (badgeEl) badgeEl.innerHTML = '<span style="color:#ef4444;">Engine: Error</span>';
+        if (infoEl) infoEl.textContent = 'Failed to check engine: ' + e.message;
+    }
+}
+
+async function refreshDockerContainers() {
+    const body = document.getElementById('docker-containers-body');
+    const countEl = document.getElementById('docker-container-count');
+    if (!body) return;
+
+    body.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.4);">Fetching containers...</div>';
+
+    try {
+        const res = await apiCommand('run_raw', { 
+            // Get ID, Name, Image, Status, Ports in a parsable format
+            command: 'docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}"' 
+        });
+
+        if (res.exit_code !== 0) {
+            body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Error: Docker daemon is likely not running.</div>`;
+            return;
+        }
+
+        const lines = (res.stdout || '').trim().split('\n').filter(l => l);
+        allDockerContainers = lines.map(line => {
+            const [id, name, image, status, ports] = line.split('|');
+            return { id, name, image, status, ports };
+        });
+
+        if (countEl) countEl.textContent = allDockerContainers.length;
+        renderDockerContainers(allDockerContainers);
+
+    } catch (e) {
+        body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Exception: ${e.message}</div>`;
+    }
+}
+
+function renderDockerContainers(containers) {
+    const body = document.getElementById('docker-containers-body');
+    if (!body) return;
+
+    if (containers.length === 0) {
+        body.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                <i class="fa-solid fa-box-open" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                <span>No containers found.</span>
+            </div>
+        `;
+        return;
     }
 
-    // Docker Status
+    let html = '';
+    containers.forEach(c => {
+        const isRunning = c.status.toLowerCase().includes('up');
+        const statusColor = isRunning ? '#10b981' : '#6b7280';
+        const iconClass = isRunning ? 'fa-play' : 'fa-stop';
+
+        html += `
+        <div style="display: grid; grid-template-columns: 28px 2fr 1.2fr 1fr 1fr 100px; align-items: center; padding: 10px 20px; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.01); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='rgba(255,255,255,0.01)'">
+            <i class="fa-solid fa-cube" style="color: ${statusColor}; font-size: 0.9rem;"></i>
+            <span style="color: #fff; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.name}">${c.name}</span>
+            <span style="color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.image}">${c.image}</span>
+            <span style="color: ${statusColor}; font-size: 0.75rem;">${c.status}</span>
+            <span style="color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.ports}">${c.ports || '-'}</span>
+            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                ${isRunning 
+                    ? `<button onclick="dockerAction('stop', '${c.id}')" title="Stop" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.8); width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-stop" style="font-size:0.65rem;"></i></button>
+                       <button onclick="dockerAction('restart', '${c.id}')" title="Restart" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.8); width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-rotate-right" style="font-size:0.65rem;"></i></button>`
+                    : `<button onclick="dockerAction('start', '${c.id}')" title="Start" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981; width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-play" style="font-size:0.65rem;"></i></button>
+                       <button onclick="dockerAction('rm', '${c.id}')" title="Delete" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-trash" style="font-size:0.65rem;"></i></button>`
+                }
+            </div>
+        </div>`;
+    });
+
+    body.innerHTML = html;
+}
+
+function filterDockerContainers() {
+    const query = (document.getElementById('docker-container-search')?.value || '').toLowerCase();
+    if (!query) {
+        renderDockerContainers(allDockerContainers);
+        return;
+    }
+    const filtered = allDockerContainers.filter(c => 
+        c.name.toLowerCase().includes(query) || 
+        c.image.toLowerCase().includes(query) || 
+        c.status.toLowerCase().includes(query)
+    );
+    renderDockerContainers(filtered);
+}
+
+async function dockerAction(action, id) {
+    showToast(`Executing 'docker ${action}' on ${id}...`);
     try {
-        const res = await apiCommand('run_raw', { command: 'command -v docker &>/dev/null && (docker info &>/dev/null && echo "Active" || echo "Stopped") || echo "NotInstalled"' });
-        if (dockEl) {
-            const out = (res?.stdout || '').trim();
-            if (out === 'Active') {
-                dockEl.innerHTML = '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> Active (Running)</span>';
-                // Containers List (Only run if docker is active)
-                try {
-                    const containersRes = await apiCommand('run_raw', { command: 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "[No containers running]"' });
-                    if (listEl) {
-                        listEl.textContent = containersRes?.stdout || '[No containers running]';
-                    }
-                } catch (err) {
-                    if (listEl) listEl.textContent = 'Failed to fetch containers: ' + err.message;
-                }
-            } else if (out === 'Stopped') {
-                dockEl.innerHTML = '<span style="color: #f59e0b;"><i class="fa-solid fa-circle-exclamation"></i> Service Stopped</span>';
-                if (listEl) listEl.textContent = 'Docker service is installed but not running.';
-            } else {
-                dockEl.innerHTML = '<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Integration Missing</span>';
-                if (listEl) {
-                    listEl.innerHTML = `<div style="color: #fca5a5; padding: 0.5rem; line-height: 1.4;">
-<strong style="color: #ff6b6b;"><i class="fa-solid fa-circle-exclamation"></i> Docker WSL Integration Required:</strong><br>
-Docker is not enabled or installed in this WSL 2 distro.<br><br>
-<span style="font-size: 0.75rem; color: var(--text-secondary); display: block; border-left: 2px solid var(--accent-orange); padding-left: 0.5rem;">
-1. Open <strong>Docker Desktop</strong> on Windows.<br>
-2. Go to <strong>Settings</strong> (gear icon) -> <strong>Resources</strong> -> <strong>WSL Integration</strong>.<br>
-3. Enable integration for <strong>Ubuntu-24.04</strong>.<br>
-4. Click <strong>Apply & Restart</strong>.
-</span>
-</div>`;
-                }
-            }
+        const res = await apiCommand('run_raw', { command: `docker ${action} ${id}` });
+        if (res.exit_code === 0) {
+            refreshDockerContainers();
+        } else {
+            showToast(`Error: ${res.stderr || res.stdout}`);
         }
     } catch (e) {
-        if (dockEl) dockEl.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+        showToast(`Failed to perform action: ${e.message}`);
+    }
+}
+
+async function refreshDockerImages() {
+    const body = document.getElementById('docker-images-body');
+    const countEl = document.getElementById('docker-image-count');
+    if (!body) return;
+
+    body.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.4);">Fetching images...</div>';
+
+    try {
+        const res = await apiCommand('run_raw', { 
+            command: 'docker images --format "{{.Repository}}|{{.Tag}}|{{.ID}}|{{.Size}}"' 
+        });
+
+        if (res.exit_code !== 0) {
+            body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Error retrieving images.</div>`;
+            return;
+        }
+
+        const lines = (res.stdout || '').trim().split('\n').filter(l => l);
+        if (countEl) countEl.textContent = lines.length;
+
+        if (lines.length === 0) {
+            body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                    <i class="fa-solid fa-layer-group" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                    <span>No images found.</span>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        lines.forEach(line => {
+            const [repo, tag, id, size] = line.split('|');
+            html += `
+            <div style="display: grid; grid-template-columns: 28px 2fr 1fr 1fr 1fr 80px; align-items: center; padding: 10px 20px; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.01); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='rgba(255,255,255,0.01)'">
+                <i class="fa-solid fa-layer-group" style="color: #60a5fa; font-size: 0.9rem;"></i>
+                <span style="color: #fff; font-weight: 500;">${repo}</span>
+                <span style="color: #a78bfa; font-family: var(--font-mono); font-size: 0.75rem;">${tag}</span>
+                <span style="color: rgba(255,255,255,0.5); font-family: var(--font-mono); font-size: 0.75rem;">${id}</span>
+                <span style="color: rgba(255,255,255,0.6);">${size}</span>
+                <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <button onclick="dockerImageAction('${id}', 'rmi -f')" title="Remove Image" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-trash" style="font-size:0.65rem;"></i></button>
+                </div>
+            </div>`;
+        });
+
+        body.innerHTML = html;
+
+    } catch (e) {
+        body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Exception: ${e.message}</div>`;
+    }
+}
+
+async function dockerPullImage() {
+    const imageName = prompt("Enter image name to pull (e.g. ubuntu:latest):");
+    if (!imageName) return;
+    showToast(`Pulling image ${imageName}...`);
+    try {
+        const res = await apiCommand('run_raw', { command: `docker pull ${imageName}` });
+        if (res.exit_code === 0) {
+            showToast(`Successfully pulled ${imageName}`);
+            refreshDockerImages();
+        } else {
+            showToast(`Error pulling image: ${res.stderr || res.stdout}`);
+        }
+    } catch (e) {
+        showToast(`Failed to pull image: ${e.message}`);
+    }
+}
+
+async function dockerImageAction(id, action) {
+    if (!confirm('Are you sure you want to remove this image?')) return;
+    showToast(`Removing image...`);
+    try {
+        const res = await apiCommand('run_raw', { command: `docker ${action} ${id}` });
+        if (res.exit_code === 0) {
+            refreshDockerImages();
+        } else {
+            showToast(`Error: ${res.stderr || res.stdout}`);
+        }
+    } catch (e) {
+        showToast(`Failed: ${e.message}`);
+    }
+}
+
+async function refreshDockerVolumes() {
+    const body = document.getElementById('docker-volumes-body');
+    const countEl = document.getElementById('docker-volume-count');
+    if (!body) return;
+
+    body.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.4);">Fetching volumes...</div>';
+
+    try {
+        const res = await apiCommand('run_raw', { 
+            command: 'docker volume ls --format "{{.Name}}|{{.Mountpoint}}|{{.Driver}}"' 
+        });
+
+        if (res.exit_code !== 0) {
+            body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Error retrieving volumes.</div>`;
+            return;
+        }
+
+        const lines = (res.stdout || '').trim().split('\n').filter(l => l);
+        if (countEl) countEl.textContent = lines.length;
+
+        if (lines.length === 0) {
+            body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 0.85rem; flex-direction: column; gap: 10px; padding: 40px;">
+                    <i class="fa-solid fa-hard-drive" style="font-size: 2.5rem; color: rgba(29,155,240,0.2);"></i>
+                    <span>No volumes found.</span>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        lines.forEach(line => {
+            const [name, mountpoint, driver] = line.split('|');
+            html += `
+            <div style="display: grid; grid-template-columns: 28px 2fr 1.5fr 1fr 80px; align-items: center; padding: 10px 20px; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.01); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='rgba(255,255,255,0.01)'">
+                <i class="fa-solid fa-hard-drive" style="color: #34d399; font-size: 0.9rem;"></i>
+                <span style="color: #fff; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</span>
+                <span style="color: rgba(255,255,255,0.5); font-family: var(--font-mono); font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${mountpoint}">${mountpoint}</span>
+                <span style="color: rgba(255,255,255,0.6);">${driver}</span>
+                <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <button onclick="dockerVolumeAction('${name}', 'rm -f')" title="Remove Volume" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; width:24px; height:24px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-trash" style="font-size:0.65rem;"></i></button>
+                </div>
+            </div>`;
+        });
+
+        body.innerHTML = html;
+
+    } catch (e) {
+        body.innerHTML = `<div style="padding: 20px; color: #ef4444;">Exception: ${e.message}</div>`;
+    }
+}
+
+async function dockerCreateVolume() {
+    const volName = prompt("Enter new volume name:");
+    if (!volName) return;
+    showToast(`Creating volume ${volName}...`);
+    try {
+        const res = await apiCommand('run_raw', { command: `docker volume create ${volName}` });
+        if (res.exit_code === 0) {
+            refreshDockerVolumes();
+        } else {
+            showToast(`Error creating volume: ${res.stderr || res.stdout}`);
+        }
+    } catch (e) {
+        showToast(`Failed: ${e.message}`);
+    }
+}
+
+async function dockerVolumeAction(name, action) {
+    if (!confirm(`Are you sure you want to remove volume '${name}'?`)) return;
+    showToast(`Removing volume...`);
+    try {
+        const res = await apiCommand('run_raw', { command: `docker volume ${action} ${name}` });
+        if (res.exit_code === 0) {
+            refreshDockerVolumes();
+        } else {
+            showToast(`Error: ${res.stderr || res.stdout}`);
+        }
+    } catch (e) {
+        showToast(`Failed: ${e.message}`);
     }
 }
 
 async function runDeployCommand(action) {
-    showToast(`Running deployment command: ${action}...`);
+    showToast(`Executing: ${action}...`);
     let cmd = '';
 
-    if (action === 'systemctl_status') {
-        cmd = 'systemctl status webos.service || true';
-    } else if (action === 'docker_status') {
-        cmd = 'docker info || true';
-    } else if (action === 'compose_up') {
+    if (action === 'compose_up') {
         cmd = 'cd /mnt/d/ubuntu-web-os && docker compose up -d || docker-compose up -d';
     } else if (action === 'compose_down') {
         cmd = 'cd /mnt/d/ubuntu-web-os && docker compose down || docker-compose down';
@@ -3068,19 +3311,82 @@ async function runDeployCommand(action) {
 
     try {
         const res = await apiCommand('run_raw', { command: cmd });
-        showToast('DevOps command complete.');
+        showToast('Command complete.');
         
-        // Show console outputs in logs tab and switch to it for commands with logs/outputs
         const logConsole = document.getElementById('dep-logs-console');
         if (logConsole) {
             logConsole.textContent = `=== Execution Output for: ${cmd} ===\n\n` + (res?.stdout || '') + '\n' + (res?.stderr || '');
-            switchDeployTab('logs');
+            switchDockerView('logs');
         }
         
-        // Refresh overview
-        setTimeout(refreshDeployOverview, 1500);
+        if (action.includes('compose')) {
+            setTimeout(fetchDockerComposeStatus, 1000);
+        }
     } catch (e) {
-        showToast('DevOps command failed: ' + e.message);
+        showToast('Command failed: ' + e.message);
+    }
+}
+
+async function fetchDockerComposeStatus() {
+    const statusEl = document.getElementById('docker-compose-status');
+    const servicesEl = document.getElementById('docker-compose-services');
+    
+    if (statusEl) statusEl.textContent = 'Checking...';
+    if (servicesEl) servicesEl.textContent = 'Loading compose configuration...';
+    
+    try {
+        const psRes = await apiCommand('run_raw', { command: 'cd /mnt/d/ubuntu-web-os && (docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" || docker-compose ps)' });
+        if (psRes.exit_code === 0) {
+            if (statusEl) {
+                if (psRes.stdout && psRes.stdout.split('\n').length > 2) {
+                    statusEl.innerHTML = '<span style="color: #10b981;">Running</span>';
+                } else {
+                    statusEl.innerHTML = '<span style="color: #9ca3af;">Stopped</span>';
+                }
+            }
+            if (servicesEl) {
+                servicesEl.textContent = psRes.stdout || 'No services running.';
+            }
+        } else {
+            if (statusEl) statusEl.innerHTML = '<span style="color: #ef4444;">Error</span>';
+            if (servicesEl) servicesEl.textContent = 'Error: ' + psRes.stderr;
+        }
+    } catch (e) {
+        if (statusEl) statusEl.innerHTML = '<span style="color: #ef4444;">Error</span>';
+    }
+}
+
+async function dockerPruneVolumes() {
+    if(!confirm("Are you sure you want to prune unused volumes?")) return;
+    try {
+        await apiCommand('run_raw', { command: 'docker volume prune -f' });
+        showToast('Volumes pruned.');
+        refreshDockerVolumes();
+    } catch (e) {
+        showToast('Prune failed: ' + e.message);
+    }
+}
+
+async function dockerPruneImages() {
+    if(!confirm("Are you sure you want to prune unused images?")) return;
+    try {
+        await apiCommand('run_raw', { command: 'docker image prune -a -f' });
+        showToast('Images pruned.');
+        refreshDockerImages();
+    } catch (e) {
+        showToast('Prune failed: ' + e.message);
+    }
+}
+
+async function dockerPruneLogs() {
+    if(!confirm("Are you sure you want to truncate docker logs?")) return;
+    try {
+        // truncate logs
+        await apiCommand('run_raw', { command: 'truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null || true' });
+        showToast('Logs pruned.');
+        document.getElementById('dep-logs-console').textContent = 'Logs cleared.';
+    } catch (e) {
+        showToast('Log prune failed: ' + e.message);
     }
 }
 
@@ -3108,7 +3414,6 @@ async function saveDeployEnv() {
 
     showToast('Saving environment changes...');
     try {
-        // Safe multiline write using EOF
         const cmd = `cat << 'EOF' > /mnt/d/ubuntu-web-os/.env\n${content}\nEOF`;
         const res = await apiCommand('run_raw', { command: cmd });
         if (res?.exit_code === 0) {
@@ -3661,3 +3966,688 @@ function loadAudioFile(input) {
     
     audioEl.play().catch(e => console.warn('Autoplay prevented:', e));
 }
+
+// ================= Redis Server Controller =================
+async function checkRedisStatus() {
+    const badge = document.getElementById('redis-status-badge');
+    if (!badge) return;
+
+    badge.textContent = 'Checking...';
+    try {
+        const res = await apiCommand('run_raw', { command: 'systemctl is-active redis-server || echo "Inactive"' });
+        const out = (res.stdout || '').trim();
+        if (out === 'active') {
+            badge.innerHTML = '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> Active (Running)</span>';
+        } else {
+            badge.innerHTML = '<span style="color: #6b7280;"><i class="fa-solid fa-circle-stop"></i> Inactive or Not Installed</span>';
+        }
+    } catch (e) {
+        badge.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+    }
+}
+
+async function redisAction(action) {
+    showToast(`Executing Redis ${action}...`);
+    let cmd = '';
+    if (action === 'start') cmd = 'sudo systemctl start redis-server';
+    else if (action === 'stop') cmd = 'sudo systemctl stop redis-server';
+    else if (action === 'restart') cmd = 'sudo systemctl restart redis-server';
+
+    try {
+        const res = await apiCommand('run_raw', { command: cmd });
+        if (res.exit_code === 0) {
+            showToast(`Redis ${action} successful.`);
+        } else {
+            showToast(`Failed to ${action} Redis. Check permissions or installation.`);
+        }
+        setTimeout(checkRedisStatus, 1000);
+    } catch (e) {
+        showToast(`Error: ${e.message}`);
+    }
+}
+
+async function handleRedisCli(event) {
+    if (event.key === 'Enter') {
+        const inputEl = event.target;
+        const cmdText = inputEl.value.trim();
+        if (!cmdText) return;
+
+        inputEl.value = '';
+        const outputEl = document.getElementById('redis-cli-output');
+        if (!outputEl) return;
+
+        // Append input
+        outputEl.innerHTML += `\n<span style="color: #ef4444;">127.0.0.1:6379></span> <span style="color: #fff;">${cmdText}</span>\n`;
+        outputEl.scrollTop = outputEl.scrollHeight;
+
+        try {
+            const safeCmd = cmdText.replace(/"/g, '\\"');
+            const res = await apiCommand('run_raw', { command: `redis-cli ${safeCmd}` });
+            
+            if (res.exit_code === 0) {
+                outputEl.innerHTML += `<span style="color: #a3be8c;">${res.stdout || '(nil)'}</span>`;
+            } else {
+                outputEl.innerHTML += `<span style="color: #ef4444;">${res.stderr || res.stdout || 'Command failed.'}</span>`;
+            }
+        } catch (e) {
+            outputEl.innerHTML += `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+        }
+        outputEl.scrollTop = outputEl.scrollHeight;
+    }
+}
+
+// ================= Kubernatives (Kubernetes) Controller & UI =================
+let k8sClusterActive = false;
+let k8sClusterType = 'Demo Cluster';
+let k8sCurrentView = 'overview';
+let k8sSelectedNamespace = 'all';
+let k8sMonacoEditor = null;
+let k8sLifecycleInterval = null;
+
+let k8sMockState = {
+    nodes: [
+        { name: 'k8s-control-plane', status: 'Ready', roles: 'control-plane', version: 'v1.30.0', cpu: '12%', mem: '45%' },
+        { name: 'k8s-worker-1', status: 'Ready', roles: 'worker', version: 'v1.30.0', cpu: '8%', mem: '30%' },
+        { name: 'k8s-worker-2', status: 'Ready', roles: 'worker', version: 'v1.30.0', cpu: '15%', mem: '60%' }
+    ],
+    deployments: [
+        { namespace: 'default', name: 'nginx-deployment', replicas: 2, ready: '2/2', uptodate: 2, available: 2, age: '14d' },
+        { namespace: 'demo', name: 'frontend-app', replicas: 3, ready: '3/3', uptodate: 3, available: 3, age: '3d' },
+        { namespace: 'demo', name: 'backend-api', replicas: 2, ready: '2/2', uptodate: 2, available: 2, age: '3d' }
+    ],
+    pods: [
+        { namespace: 'kube-system', name: 'coredns-6554865-x49d1', status: 'Running', restarts: 0, ip: '10.244.0.2', node: 'k8s-control-plane', age: '45d' },
+        { namespace: 'kube-system', name: 'kube-proxy-8d8s8', status: 'Running', restarts: 0, ip: '192.168.1.10', node: 'k8s-worker-1', age: '45d' },
+        { namespace: 'kube-system', name: 'kube-proxy-9kkd2', status: 'Running', restarts: 1, ip: '192.168.1.11', node: 'k8s-worker-2', age: '45d' },
+        { namespace: 'default', name: 'nginx-deployment-556b6-a8a2d', status: 'Running', restarts: 0, ip: '10.244.1.12', node: 'k8s-worker-1', age: '4d' },
+        { namespace: 'default', name: 'nginx-deployment-556b6-k7c4a', status: 'Running', restarts: 0, ip: '10.244.2.8', node: 'k8s-worker-2', age: '4d' },
+        { namespace: 'demo', name: 'frontend-app-88f28-j2d8k', status: 'Running', restarts: 0, ip: '10.244.1.34', node: 'k8s-worker-1', age: '3d' },
+        { namespace: 'demo', name: 'frontend-app-88f28-m9x3a', status: 'Running', restarts: 0, ip: '10.244.2.19', node: 'k8s-worker-2', age: '3d' },
+        { namespace: 'demo', name: 'frontend-app-88f28-w7d2s', status: 'Running', restarts: 0, ip: '10.244.1.35', node: 'k8s-worker-1', age: '12h' },
+        { namespace: 'demo', name: 'backend-api-74ff9-r2s8d', status: 'Running', restarts: 2, ip: '10.244.2.40', node: 'k8s-worker-2', age: '3d' },
+        { namespace: 'demo', name: 'backend-api-74ff9-y7x1a', status: 'Running', restarts: 0, ip: '10.244.1.36', node: 'k8s-worker-1', age: '3d' }
+    ],
+    services: [
+        { namespace: 'default', name: 'kubernetes', type: 'ClusterIP', clusterIp: '10.96.0.1', externalIp: '<none>', ports: '443/TCP', age: '45d' },
+        { namespace: 'default', name: 'nginx-service', type: 'NodePort', clusterIp: '10.102.34.8', externalIp: '<none>', ports: '80:31280/TCP', age: '4d' },
+        { namespace: 'demo', name: 'frontend-service', type: 'LoadBalancer', clusterIp: '10.99.112.5', externalIp: '192.168.1.150', ports: '80:30080/TCP', age: '3d' }
+    ]
+};
+
+async function initKubernetesApp() {
+    // 1. Initialize YAML Editor if loaded
+    if (typeof monaco !== 'undefined' && !k8sMonacoEditor) {
+        const container = document.getElementById('k8s-monaco-container');
+        if (container) {
+            k8sMonacoEditor = monaco.editor.create(container, {
+                value: `# Kubernetes Manifest Template\napiVersion: v1\nkind: Pod\nmetadata:\n  name: demo-pod\n  namespace: default\nspec:\n  containers:\n  - name: web\n    image: nginx:alpine\n    ports:\n    - containerPort: 80\n`,
+                language: 'yaml',
+                theme: 'vs-dark',
+                automaticLayout: true
+            });
+        }
+    }
+
+    // 2. Verify status of real cluster
+    const badge = document.getElementById('k8s-cluster-badge');
+    if (badge) badge.textContent = 'Checking Cluster...';
+
+    try {
+        const res = await apiCommand('run_raw', { command: 'kubectl cluster-info' });
+        if (res.exit_code === 0) {
+            k8sClusterActive = true;
+            k8sClusterType = 'WSL Cluster';
+            if (badge) badge.innerHTML = '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> Cluster: WSL (Connected)</span>';
+        } else {
+            k8sClusterActive = false;
+            k8sClusterType = 'Demo Cluster';
+            if (badge) badge.innerHTML = '<span style="color: #e95420;"><i class="fa-solid fa-triangle-exclamation"></i> Cluster: Demo Mode</span>';
+        }
+    } catch (e) {
+        k8sClusterActive = false;
+        k8sClusterType = 'Demo Cluster';
+        if (badge) badge.innerHTML = '<span style="color: #e95420;"><i class="fa-solid fa-triangle-exclamation"></i> Cluster: Demo Mode</span>';
+    }
+
+    // 3. Start mock lifecycle background controller (runs regardless of mode to ensure demo fallback responsiveness)
+    if (!k8sLifecycleInterval) {
+        k8sLifecycleInterval = setInterval(runK8sControllerLoop, 2000);
+    }
+
+    // 4. Default View
+    switchK8sView('overview');
+}
+
+function runK8sControllerLoop() {
+    let changed = false;
+
+    // A. Transition Pod statuses (Pending -> ContainerCreating -> Running)
+    k8sMockState.pods.forEach(pod => {
+        if (pod.status === 'Pending') {
+            pod.status = 'ContainerCreating';
+            changed = true;
+        } else if (pod.status === 'ContainerCreating') {
+            pod.status = 'Running';
+            changed = true;
+        } else if (pod.status === 'Terminating') {
+            k8sMockState.pods = k8sMockState.pods.filter(p => p.name !== pod.name);
+            changed = true;
+        }
+    });
+
+    // B. Reconcile Deployments Replicas count
+    k8sMockState.deployments.forEach(deploy => {
+        const deployPods = k8sMockState.pods.filter(p => p.name.startsWith(deploy.name + '-') && p.status !== 'Terminating');
+        const runningOrCreatingCount = deployPods.length;
+
+        if (runningOrCreatingCount < deploy.replicas) {
+            const randSuffix = Math.random().toString(36).substring(2, 7);
+            k8sMockState.pods.push({
+                namespace: deploy.namespace,
+                name: `${deploy.name}-${randSuffix}`,
+                status: 'Pending',
+                restarts: 0,
+                ip: `10.244.${Math.floor(Math.random()*254)}.${Math.floor(Math.random()*254)}`,
+                node: `k8s-worker-${Math.floor(Math.random()*2)+1}`,
+                age: '1s'
+            });
+            changed = true;
+        } else if (runningOrCreatingCount > deploy.replicas) {
+            const podToKill = deployPods[0];
+            if (podToKill) {
+                podToKill.status = 'Terminating';
+                changed = true;
+            }
+        }
+
+        // Update deployment Ready counter
+        const activeCount = k8sMockState.pods.filter(p => p.name.startsWith(deploy.name + '-') && p.status === 'Running').length;
+        deploy.ready = `${activeCount}/${deploy.replicas}`;
+        deploy.available = activeCount;
+        deploy.uptodate = deploy.replicas;
+    });
+
+    // C. Simulated Node CPU/MEM fluctuations
+    k8sMockState.nodes.forEach(node => {
+        const cpuPct = Math.floor(Math.random() * 15) + (node.roles === 'control-plane' ? 10 : 5);
+        const memPct = Math.floor(Math.random() * 5) + (node.roles === 'control-plane' ? 40 : 25);
+        node.cpu = `${cpuPct}%`;
+        node.mem = `${memPct}%`;
+    });
+
+    if (changed) {
+        renderActiveK8sView();
+    }
+}
+
+function switchK8sView(viewName) {
+    k8sCurrentView = viewName;
+    
+    // Toggle Active class in Sidebar
+    document.querySelectorAll('.k8s-nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.color = 'rgba(255,255,255,0.45)';
+        btn.style.background = 'transparent';
+    });
+
+    const activeBtn = document.getElementById(`k8s-nav-${viewName}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.style.color = '#fff';
+        activeBtn.style.background = 'rgba(50,108,229,0.15)';
+    }
+
+    // Toggle Content Views
+    const views = ['overview', 'pods', 'deployments', 'services', 'yaml', 'cli'];
+    views.forEach(v => {
+        const el = document.getElementById(`k8s-view-${v}`);
+        if (el) el.style.display = 'none';
+    });
+
+    const activeEl = document.getElementById(`k8s-view-${viewName}`);
+    if (activeEl) {
+        activeEl.style.display = 'flex';
+    }
+
+    // Refresh contents
+    renderActiveK8sView();
+}
+
+function renderActiveK8sView() {
+    if (k8sCurrentView === 'overview') {
+        renderK8sOverview();
+    } else if (k8sCurrentView === 'pods') {
+        renderK8sPods();
+    } else if (k8sCurrentView === 'deployments') {
+        renderK8sDeployments();
+    } else if (k8sCurrentView === 'services') {
+        renderK8sServices();
+    }
+}
+
+function refreshK8sData() {
+    const sel = document.getElementById('k8s-namespace-select');
+    if (sel) {
+        k8sSelectedNamespace = sel.value;
+    }
+    renderActiveK8sView();
+}
+
+function renderK8sOverview() {
+    // Update top counts
+    const podsCount = k8sMockState.pods.filter(p => k8sSelectedNamespace === 'all' || p.namespace === k8sSelectedNamespace).length;
+    const runningPodsCount = k8sMockState.pods.filter(p => (k8sSelectedNamespace === 'all' || p.namespace === k8sSelectedNamespace) && p.status === 'Running').length;
+    const unhealthyCount = podsCount - runningPodsCount;
+    const deployCount = k8sMockState.deployments.filter(d => k8sSelectedNamespace === 'all' || d.namespace === k8sSelectedNamespace).length;
+    const svcCount = k8sMockState.services.filter(s => k8sSelectedNamespace === 'all' || s.namespace === k8sSelectedNamespace).length;
+
+    document.getElementById('k8s-node-count-val').textContent = `${k8sMockState.nodes.length} / ${k8sMockState.nodes.length} Ready`;
+    document.getElementById('k8s-pod-count-val').textContent = `${runningPodsCount} / ${podsCount} Running`;
+    document.getElementById('k8s-pods-unhealthy').textContent = `${unhealthyCount} Unhealthy Pods`;
+    document.getElementById('k8s-deploy-count-val').textContent = `${deployCount} Deployments`;
+    document.getElementById('k8s-services-count').textContent = `${svcCount} Services Exposed`;
+
+    // Render Nodes list
+    const tbody = document.getElementById('k8s-nodes-list-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    k8sMockState.nodes.forEach(node => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+        tr.innerHTML = `
+            <td style="padding: 12px 16px; color: #fff; font-weight: 500;">${node.name}</td>
+            <td style="padding: 12px 16px;"><span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> ${node.status}</span></td>
+            <td style="padding: 12px 16px; color: var(--text-secondary);">${node.roles}</td>
+            <td style="padding: 12px 16px; color: var(--text-secondary); font-family: var(--font-mono);">${node.version}</td>
+            <td style="padding: 12px 16px; color: #326ce5; font-family: var(--font-mono); font-weight: 500;">CPU: ${node.cpu} | MEM: ${node.mem}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderK8sPods() {
+    const listBody = document.getElementById('k8s-pods-list-body');
+    if (!listBody) return;
+    listBody.innerHTML = '';
+
+    const filtered = k8sMockState.pods.filter(p => k8sSelectedNamespace === 'all' || p.namespace === k8sSelectedNamespace);
+
+    if (filtered.length === 0) {
+        listBody.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--text-secondary);">No pods found in namespace: ${k8sSelectedNamespace}</div>`;
+        return;
+    }
+
+    filtered.forEach(pod => {
+        const el = document.createElement('div');
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = '1fr 1.8fr 1fr 0.8fr 1fr 1.2fr 100px';
+        el.style.gap = '10px';
+        el.style.padding = '12px 20px';
+        el.style.alignItems = 'center';
+        el.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+        el.style.fontSize = '0.8rem';
+
+        let statusColor = '#10b981'; // Green
+        let statusIcon = '<i class="fa-solid fa-circle-check"></i>';
+        if (pod.status === 'Pending' || pod.status === 'ContainerCreating') {
+            statusColor = '#f59e0b'; // Orange
+            statusIcon = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        } else if (pod.status === 'Terminating') {
+            statusColor = '#ef4444'; // Red
+            statusIcon = '<i class="fa-solid fa-circle-minus"></i>';
+        }
+
+        el.innerHTML = `
+            <span style="color: var(--text-secondary);">${pod.namespace}</span>
+            <strong style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${pod.name}</strong>
+            <span style="color: ${statusColor}; font-weight: 600;">${statusIcon} ${pod.status}</span>
+            <span style="color: var(--text-secondary);">${pod.restarts}</span>
+            <span style="color: var(--text-secondary); font-family: var(--font-mono);">${pod.ip}</span>
+            <span style="color: var(--text-secondary);">${pod.node}</span>
+            <div style="text-align: right; display: flex; gap: 4px; justify-content: flex-end;">
+                <button onclick="k8sViewPodLogs('${pod.name}', '${pod.namespace}')" class="fm-btn" style="padding: 2px 6px; font-size: 0.7rem; width: auto; background: rgba(255,255,255,0.05); color: #fff;" title="Logs"><i class="fa-solid fa-scroll"></i></button>
+                <button onclick="k8sDeletePod('${pod.name}', '${pod.namespace}')" class="fm-btn" style="padding: 2px 6px; font-size: 0.7rem; width: auto; background: rgba(239,68,68,0.12); color: #ef4444; border-color: rgba(239,68,68,0.2);" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+        `;
+        listBody.appendChild(el);
+    });
+}
+
+function renderK8sDeployments() {
+    const listBody = document.getElementById('k8s-deployments-list-body');
+    if (!listBody) return;
+    listBody.innerHTML = '';
+
+    const filtered = k8sMockState.deployments.filter(d => k8sSelectedNamespace === 'all' || d.namespace === k8sSelectedNamespace);
+
+    if (filtered.length === 0) {
+        listBody.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--text-secondary);">No deployments found in namespace: ${k8sSelectedNamespace}</div>`;
+        return;
+    }
+
+    filtered.forEach(deploy => {
+        const el = document.createElement('div');
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = '1.2fr 2fr 1fr 1fr 1fr 1.2fr';
+        el.style.gap = '10px';
+        el.style.padding = '12px 20px';
+        el.style.alignItems = 'center';
+        el.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+        el.style.fontSize = '0.8rem';
+
+        el.innerHTML = `
+            <span style="color: var(--text-secondary);">${deploy.namespace}</span>
+            <strong style="color: #fff;">${deploy.name}</strong>
+            <span style="color: #10b981; font-weight: bold;">${deploy.ready}</span>
+            <span style="color: var(--text-secondary);">${deploy.uptodate}</span>
+            <span style="color: var(--text-secondary);">${deploy.available}</span>
+            <div style="text-align: right; display: flex; gap: 4px; justify-content: flex-end;">
+                <button onclick="k8sScaleDeployment('${deploy.name}', '${deploy.namespace}', ${deploy.replicas})" class="fm-btn" style="padding: 2px 8px; font-size: 0.7rem; width: auto; background: rgba(50,108,229,0.12); color: #326ce5; border-color: rgba(50,108,229,0.25);"><i class="fa-solid fa-arrows-up-down"></i> Scale</button>
+            </div>
+        `;
+        listBody.appendChild(el);
+    });
+}
+
+function renderK8sServices() {
+    const listBody = document.getElementById('k8s-services-list-body');
+    if (!listBody) return;
+    listBody.innerHTML = '';
+
+    const filtered = k8sMockState.services.filter(s => k8sSelectedNamespace === 'all' || s.namespace === k8sSelectedNamespace);
+
+    if (filtered.length === 0) {
+        listBody.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--text-secondary);">No services found in namespace: ${k8sSelectedNamespace}</div>`;
+        return;
+    }
+
+    filtered.forEach(svc => {
+        const el = document.createElement('div');
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = '1.2fr 2fr 1fr 1.2fr 1.2fr 1.5fr';
+        el.style.gap = '10px';
+        el.style.padding = '12px 20px';
+        el.style.alignItems = 'center';
+        el.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+        el.style.fontSize = '0.8rem';
+
+        el.innerHTML = `
+            <span style="color: var(--text-secondary);">${svc.namespace}</span>
+            <strong style="color: #fff;">${svc.name}</strong>
+            <span style="color: #a78bfa; font-weight: 500;">${svc.type}</span>
+            <span style="color: var(--text-secondary); font-family: var(--font-mono);">${svc.clusterIp}</span>
+            <span style="color: var(--text-secondary); font-family: var(--font-mono);">${svc.externalIp}</span>
+            <span style="color: var(--text-secondary); font-family: var(--font-mono);">${svc.ports}</span>
+        `;
+        listBody.appendChild(el);
+    });
+}
+
+function k8sDeletePod(name, namespace) {
+    if (!confirm(`Are you sure you want to delete pod "${name}"?`)) return;
+
+    if (k8sClusterActive) {
+        showToast(`Deleting pod ${name}...`);
+        apiCommand('run_raw', { command: `kubectl delete pod ${name} -n ${namespace}` })
+            .then(res => {
+                if (res.exit_code === 0) {
+                    showToast(`Pod ${name} deleted.`);
+                } else {
+                    showToast(`Failed to delete pod: ${res.stderr || 'error'}`);
+                }
+                setTimeout(refreshK8sData, 1000);
+            });
+    } else {
+        // Mock State delete
+        const pod = k8sMockState.pods.find(p => p.name === name);
+        if (pod) {
+            pod.status = 'Terminating';
+            showToast(`Terminating pod ${name}...`);
+            renderK8sPods();
+        }
+    }
+}
+
+function k8sScaleDeployment(name, namespace, currentReplicas) {
+    const val = prompt(`Scale deployment "${name}" replicas count:`, currentReplicas);
+    if (val === null) return;
+    const replicas = parseInt(val);
+    if (isNaN(replicas) || replicas < 0) {
+        alert('Invalid replicas count.');
+        return;
+    }
+
+    if (k8sClusterActive) {
+        showToast(`Scaling deployment ${name} to ${replicas}...`);
+        apiCommand('run_raw', { command: `kubectl scale deployment ${name} -n ${namespace} --replicas=${replicas}` })
+            .then(res => {
+                if (res.exit_code === 0) {
+                    showToast(`Scaled deployment ${name} successfully.`);
+                } else {
+                    showToast(`Failed to scale: ${res.stderr}`);
+                }
+                setTimeout(refreshK8sData, 1000);
+            });
+    } else {
+        // Mock State scale
+        const deploy = k8sMockState.deployments.find(d => d.name === name && d.namespace === namespace);
+        if (deploy) {
+            deploy.replicas = replicas;
+            showToast(`Scaled deployment ${name} to ${replicas}.`);
+            renderK8sDeployments();
+        }
+    }
+}
+
+function k8sLoadYamlTemplate() {
+    if (k8sMonacoEditor) {
+        k8sMonacoEditor.setValue(`# Sample Pod Configuration\napiVersion: v1\nkind: Pod\nmetadata:\n  name: demo-webapp\n  namespace: default\n  labels:\n    app: webapp\nspec:\n  containers:\n  - name: server\n    image: nginx:alpine\n    ports:\n    - containerPort: 80\n`);
+    }
+}
+
+async function k8sApplyYaml() {
+    if (!k8sMonacoEditor) return;
+    const yamlContent = k8sMonacoEditor.getValue().trim();
+    if (!yamlContent) {
+        alert('YAML manifest is empty.');
+        return;
+    }
+
+    if (k8sClusterActive) {
+        showToast('Applying Kubernetes manifest...');
+        // To apply safely, we write to a base64 temp file and run kubectl apply -f
+        try {
+            const randFile = `/tmp/k8s-manifest-${Math.random().toString(36).substring(2, 7)}.yaml`;
+            const b64 = btoa(yamlContent);
+            await apiCommand('write_file_base64', { path: randFile, b64: b64 });
+            const res = await apiCommand('run_raw', { command: `kubectl apply -f ${randFile} && rm -f ${randFile}` });
+            
+            if (res.exit_code === 0) {
+                showToast('Manifest applied successfully.');
+                switchK8sView('pods');
+            } else {
+                alert(`Apply failed:\n${res.stderr || res.stdout}`);
+            }
+        } catch (e) {
+            alert(`Error applying manifest: ${e.message}`);
+        }
+    } else {
+        // Mock parsing & adding
+        try {
+            // Very simple parser for mock visual updates
+            const kindMatch = yamlContent.match(/kind:\s*(\w+)/i);
+            const nameMatch = yamlContent.match(/name:\s*([a-zA-Z0-9\-]+)/i);
+            const nsMatch = yamlContent.match(/namespace:\s*([a-zA-Z0-9\-]+)/i);
+            
+            const kind = kindMatch ? kindMatch[1] : 'Pod';
+            const name = nameMatch ? nameMatch[1] : 'demo-resource';
+            const namespace = nsMatch ? nsMatch[1] : 'default';
+
+            showToast(`Mock applying ${kind} "${name}"...`);
+
+            if (kind.toLowerCase() === 'pod') {
+                // Remove if already exists
+                k8sMockState.pods = k8sMockState.pods.filter(p => p.name !== name);
+                k8sMockState.pods.push({
+                    namespace: namespace,
+                    name: name,
+                    status: 'Pending',
+                    restarts: 0,
+                    ip: '10.244.1.99',
+                    node: 'k8s-worker-1',
+                    age: '1s'
+                });
+                switchK8sView('pods');
+            } else if (kind.toLowerCase() === 'deployment') {
+                const repMatch = yamlContent.match(/replicas:\s*(\d+)/i);
+                const replicas = repMatch ? parseInt(repMatch[1]) : 1;
+
+                k8sMockState.deployments = k8sMockState.deployments.filter(d => d.name !== name);
+                k8sMockState.deployments.push({
+                    namespace: namespace,
+                    name: name,
+                    replicas: replicas,
+                    ready: `0/${replicas}`,
+                    uptodate: replicas,
+                    available: 0,
+                    age: '1s'
+                });
+                switchK8sView('deployments');
+            } else if (kind.toLowerCase() === 'service') {
+                const portMatch = yamlContent.match(/port:\s*(\d+)/i);
+                const port = portMatch ? portMatch[1] : '80';
+                
+                k8sMockState.services = k8sMockState.services.filter(s => s.name !== name);
+                k8sMockState.services.push({
+                    namespace: namespace,
+                    name: name,
+                    type: 'ClusterIP',
+                    clusterIp: '10.96.15.22',
+                    externalIp: '<none>',
+                    ports: `${port}/TCP`,
+                    age: '1s'
+                });
+                switchK8sView('services');
+            } else {
+                alert(`Mock Cluster applied YAML for Kind "${kind}" but it is not rendered in tables.`);
+            }
+        } catch (e) {
+            alert('Failed to parse mock YAML. Ensure kind, metadata.name are defined.');
+        }
+    }
+}
+
+function k8sViewPodLogs(podName, namespace) {
+    // Open a visual logs viewer (we can reuse the clean logs modal or console tab)
+    switchK8sView('cli');
+    const cliOutput = document.getElementById('k8s-cli-output');
+    if (!cliOutput) return;
+
+    cliOutput.innerHTML = `\n<span style="color: #326ce5;">root@k8s-wsl:~$</span> <span style="color: #fff;">kubectl logs ${podName} -n ${namespace}</span>\n`;
+    cliOutput.innerHTML += `<span style="color: var(--text-secondary);">Streaming logs for pod ${podName}...</span>\n`;
+
+    if (k8sClusterActive) {
+        apiCommand('run_raw', { command: `kubectl logs ${podName} -n ${namespace} --tail=100` })
+            .then(res => {
+                cliOutput.innerHTML += `\n<span style="color: #e5e7eb;">${res.stdout || res.stderr || '(no logs available)'}</span>\n`;
+                cliOutput.scrollTop = cliOutput.scrollHeight;
+            });
+    } else {
+        // Mock Logs generator
+        setTimeout(() => {
+            const timeStr = new Date().toISOString();
+            cliOutput.innerHTML += `
+<span style="color: #88c0d0;">${timeStr} [info] Starting container runtime engine...</span>
+<span style="color: #88c0d0;">${timeStr} [info] Config successfully loaded from environment.</span>
+<span style="color: #a3be8c;">${timeStr} [debug] Initializing database connection pool (max: 20)...</span>
+<span style="color: #ebcb8b;">${timeStr} [warn] Redis cache unavailable. Retrying connection...</span>
+<span style="color: #a3be8c;">${timeStr} [debug] Connected to Redis Cache server successfully.</span>
+<span style="color: #88c0d0;">${timeStr} [info] Web Application listening on port 80...</span>
+<span style="color: #88c0d0;">${timeStr} [info] GET /index.html 200 OK (latency: 12ms)</span>
+<span style="color: #88c0d0;">${timeStr} [info] GET /static/js/bundle.js 200 OK (latency: 24ms)</span>
+`;
+            cliOutput.scrollTop = cliOutput.scrollHeight;
+        }, 800);
+    }
+}
+
+async function handleK8sCli(event) {
+    if (event.key === 'Enter') {
+        const inputEl = event.target;
+        const cmdText = inputEl.value.trim();
+        if (!cmdText) return;
+
+        inputEl.value = '';
+        const outputEl = document.getElementById('k8s-cli-output');
+        if (!outputEl) return;
+
+        // Append user input
+        outputEl.innerHTML += `\n<span style="color: #326ce5; font-weight: bold;">root@k8s-wsl:~$</span> <span style="color: #fff;">${cmdText}</span>\n`;
+        outputEl.scrollTop = outputEl.scrollHeight;
+
+        if (k8sClusterActive) {
+            try {
+                const res = await apiCommand('run_raw', { command: cmdText });
+                if (res.exit_code === 0) {
+                    outputEl.innerHTML += `<span style="color: #e5e7eb;">${res.stdout || '(nil)'}</span>`;
+                } else {
+                    outputEl.innerHTML += `<span style="color: #ef4444;">${res.stderr || res.stdout || 'Command failed.'}</span>`;
+                }
+            } catch (e) {
+                outputEl.innerHTML += `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+            }
+            outputEl.scrollTop = outputEl.scrollHeight;
+        } else {
+            // Mock CLI outputs
+            setTimeout(() => {
+                let out = '';
+                const args = cmdText.split(/\s+/);
+                
+                if (args[0] !== 'kubectl') {
+                    out = `<span style="color: #ef4444;">bash: ${args[0]}: command not found. Only kubectl operations supported in this shell.</span>`;
+                } else {
+                    const action = args[1];
+                    const resource = args[2];
+                    
+                    if (action === 'get') {
+                        if (!resource) {
+                            out = `<span style="color: #ef4444;">error: You must specify the type of resource to get.</span>`;
+                        } else if (resource.startsWith('node')) {
+                            out = `<span style="font-weight: bold;">NAME               STATUS   ROLES           AGE   VERSION</span>\n`;
+                            k8sMockState.nodes.forEach(n => {
+                                out += `${n.name.padEnd(18)} Ready    ${n.roles.padEnd(15)} 45d   ${n.version}\n`;
+                            });
+                        } else if (resource.startsWith('pod')) {
+                            out = `<span style="font-weight: bold;">NAMESPACE     NAME                                           READY   STATUS    RESTARTS   AGE</span>\n`;
+                            k8sMockState.pods.forEach(p => {
+                                out += `${p.namespace.padEnd(13)} ${p.name.padEnd(46)} 1/1     ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${p.age}\n`;
+                            });
+                        } else if (resource.startsWith('deploy')) {
+                            out = `<span style="font-weight: bold;">NAMESPACE     NAME               READY   UP-TO-DATE   AVAILABLE   AGE</span>\n`;
+                            k8sMockState.deployments.forEach(d => {
+                                out += `${d.namespace.padEnd(13)} ${d.name.padEnd(18)} ${d.ready.padEnd(7)} ${String(d.uptodate).padEnd(12)} ${String(d.available).padEnd(11)} ${d.age}\n`;
+                            });
+                        } else if (resource.startsWith('svc') || resource.startsWith('service')) {
+                            out = `<span style="font-weight: bold;">NAMESPACE     NAME                TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)          AGE</span>\n`;
+                            k8sMockState.services.forEach(s => {
+                                out += `${s.namespace.padEnd(13)} ${s.name.padEnd(19)} ${s.type.padEnd(14)} ${s.clusterIp.padEnd(14)} ${s.externalIp.padEnd(15)} ${s.ports.padEnd(16)} ${s.age}\n`;
+                            });
+                        } else {
+                            out = `<span style="color: #ef4444;">error: the server doesn't have a resource type "${resource}"</span>`;
+                        }
+                    } else if (action === 'version') {
+                        out = `Client Version: v1.30.0\nServer Version: v1.30.0 (Mock Cluster Mode)\n`;
+                    } else if (action === 'cluster-info') {
+                        out = `Kubernetes control plane is running at <span style="color: #a3be8c;">https://127.0.0.1:6443</span>\nCoreDNS is running at <span style="color: #a3be8c;">https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy</span>\n`;
+                    } else {
+                        out = `kubectl ${action} is not simulated in Mock Mode. Try: 'kubectl get pods', 'kubectl get nodes', 'kubectl get deployments', 'kubectl get services', 'kubectl version'`;
+                    }
+                }
+                outputEl.innerHTML += `<span style="color: #a3be8c;">${out}</span>\n`;
+                outputEl.scrollTop = outputEl.scrollHeight;
+            }, 200);
+        }
+    }
+}
+

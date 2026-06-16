@@ -21,10 +21,10 @@
         "MODULE",
         "KBUILD_MODNAME=\"\\\"webos_module\\\"\""
       ],
-      "compilerPath": "gcc",
+      "compilerPath": "C:/gcc-16.1.0/bin/gcc.exe",
       "cStandard": "c11",
       "cppStandard": "gnu++14",
-      "intelliSenseMode": "linux-gcc-x64"
+      "intelliSenseMode": "windows-gcc-x64"
     }
   ],
   "version": 4
