@@ -236,7 +236,10 @@ const windows = {
     network: { active: false, min: false, max: false, x: 250, y: 220, w: 620, h: 420, icon: 'fa-network-wired', name: 'Network' },
     cleaner: { active: false, min: false, max: false, x: 600, y: 240, w: 460, h: 380, icon: 'fa-broom', name: 'Cleaner' },
     deploy: { active: false, min: false, max: false, x: 200, y: 150, w: 660, h: 480, icon: 'fa-server', name: 'Deploy Center' },
-    browser: { active: false, min: false, max: false, x: 120, y: 120, w: 700, h: 500, icon: 'fa-globe', name: 'Browser' }
+    browser: { active: false, min: false, max: false, x: 120, y: 120, w: 700, h: 500, icon: 'fa-globe', name: 'Browser' },
+    translator: { active: false, min: false, max: false, x: 200, y: 100, w: 780, h: 520, icon: 'fa-language', name: 'Translator' },
+    video: { active: false, min: false, max: false, x: 250, y: 150, w: 640, h: 440, icon: 'fa-film', name: 'Video Player' },
+    music: { active: false, min: false, max: false, x: 300, y: 200, w: 400, h: 500, icon: 'fa-music', name: 'Music Player' }
 };
 
 let highestZ = 100;
@@ -2795,4 +2798,249 @@ function browserRefresh() {
     const input = document.getElementById('browser-url-input');
     if (!iframe || !input) return;
     navigateBrowser(input.value);
+}
+
+// ===================== Translator App =====================
+
+// Language name lookup table
+const LANG_NAMES = {
+    'auto': 'Auto-Detect', 'en': 'English', 'es': 'Spanish', 'fr': 'French',
+    'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian',
+    'ja': 'Japanese', 'ko': 'Korean', 'zh-CN': 'Chinese (Simplified)',
+    'zh-TW': 'Chinese (Traditional)', 'ar': 'Arabic', 'hi': 'Hindi',
+    'bn': 'Bengali', 'tr': 'Turkish', 'nl': 'Dutch', 'pl': 'Polish',
+    'sv': 'Swedish', 'th': 'Thai', 'vi': 'Vietnamese', 'id': 'Indonesian',
+    'uk': 'Ukrainian', 'cs': 'Czech', 'el': 'Greek', 'ro': 'Romanian',
+    'da': 'Danish', 'fi': 'Finnish', 'hu': 'Hungarian', 'no': 'Norwegian',
+    'ms': 'Malay', 'ta': 'Tamil', 'te': 'Telugu', 'ur': 'Urdu'
+};
+
+function updateTranslatorCharCount() {
+    const sourceText = document.getElementById('translator-source-text');
+    const charCount = document.getElementById('translator-char-count');
+    if (!sourceText || !charCount) return;
+    const len = sourceText.value.length;
+    charCount.textContent = `${len} / 5000`;
+    if (len > 4500) {
+        charCount.style.color = '#ef4444';
+    } else if (len > 4000) {
+        charCount.style.color = '#f59e0b';
+    } else {
+        charCount.style.color = 'rgba(255, 255, 255, 0.25)';
+    }
+}
+
+function swapTranslatorLanguages() {
+    const srcSel = document.getElementById('translator-source-lang');
+    const tgtSel = document.getElementById('translator-target-lang');
+    const srcText = document.getElementById('translator-source-text');
+    const tgtText = document.getElementById('translator-target-text');
+    if (!srcSel || !tgtSel) return;
+
+    // Can't swap if source is auto-detect
+    if (srcSel.value === 'auto') return;
+
+    const tmpLang = srcSel.value;
+    srcSel.value = tgtSel.value;
+    tgtSel.value = tmpLang;
+
+    // Also swap text content
+    if (srcText && tgtText && tgtText.value) {
+        const tmpText = srcText.value;
+        srcText.value = tgtText.value;
+        tgtText.value = tmpText;
+        updateTranslatorCharCount();
+    }
+}
+
+function clearTranslatorSource() {
+    const srcText = document.getElementById('translator-source-text');
+    const tgtText = document.getElementById('translator-target-text');
+    const status = document.getElementById('translator-status');
+    const detected = document.getElementById('translator-detected-lang');
+    if (srcText) srcText.value = '';
+    if (tgtText) tgtText.value = '';
+    if (status) status.textContent = '';
+    if (detected) detected.textContent = '';
+    updateTranslatorCharCount();
+}
+
+async function pasteToTranslator() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const srcText = document.getElementById('translator-source-text');
+        if (srcText) {
+            srcText.value = text;
+            updateTranslatorCharCount();
+        }
+    } catch (e) {
+        console.warn('Clipboard paste failed:', e);
+    }
+}
+
+async function copyTranslation() {
+    const tgtText = document.getElementById('translator-target-text');
+    if (!tgtText || !tgtText.value) return;
+    try {
+        await navigator.clipboard.writeText(tgtText.value);
+        const status = document.getElementById('translator-status');
+        if (status) {
+            status.textContent = '✓ Copied!';
+            setTimeout(() => { status.textContent = ''; }, 2000);
+        }
+    } catch (e) {
+        console.warn('Copy failed:', e);
+    }
+}
+
+async function translateText() {
+    const srcText = document.getElementById('translator-source-text');
+    const tgtText = document.getElementById('translator-target-text');
+    const srcLang = document.getElementById('translator-source-lang');
+    const tgtLang = document.getElementById('translator-target-lang');
+    const btn = document.getElementById('translator-translate-btn');
+    const status = document.getElementById('translator-status');
+    const detected = document.getElementById('translator-detected-lang');
+
+    if (!srcText || !tgtText || !srcLang || !tgtLang) return;
+
+    const text = srcText.value.trim();
+    if (!text) {
+        tgtText.value = '';
+        if (status) status.textContent = '';
+        return;
+    }
+
+    if (text.length > 5000) {
+        if (status) status.textContent = '⚠ Text too long (max 5000 chars)';
+        return;
+    }
+
+    // Show loading state
+    if (btn) {
+        btn.classList.add('loading');
+        btn.querySelector('i').className = 'fa-solid fa-spinner';
+    }
+    if (status) status.textContent = 'Translating...';
+    tgtText.value = '';
+
+    const sourceLang = srcLang.value === 'auto' ? 'autodetect' : srcLang.value;
+    const targetLang = tgtLang.value;
+    const langPair = `${sourceLang}|${targetLang}`;
+
+    try {
+        const response = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(langPair)}`
+        );
+        const data = await response.json();
+
+        if (data.responseStatus === 200 && data.responseData) {
+            tgtText.value = data.responseData.translatedText;
+            if (status) status.textContent = `✓ Translated`;
+
+            // Show detected language if auto-detect was used
+            if (srcLang.value === 'auto' && data.responseData.detectedLanguage) {
+                const detectedCode = data.responseData.detectedLanguage;
+                const langName = LANG_NAMES[detectedCode] || detectedCode;
+                if (detected) detected.textContent = `Detected: ${langName}`;
+            } else {
+                if (detected) detected.textContent = '';
+            }
+
+            // Also show match quality if available
+            if (data.responseData.match) {
+                const quality = Math.round(data.responseData.match * 100);
+                if (status) status.textContent = `✓ Translated (${quality}% match)`;
+            }
+        } else {
+            // Fallback: try matches array
+            if (data.matches && data.matches.length > 0) {
+                tgtText.value = data.matches[0].translation;
+                if (status) status.textContent = '✓ Translated (best match)';
+            } else {
+                tgtText.value = '';
+                if (status) status.textContent = '⚠ No translation found';
+            }
+            if (detected) detected.textContent = '';
+        }
+    } catch (err) {
+        console.error('Translation error:', err);
+        if (status) status.textContent = '✗ Translation failed';
+        if (detected) detected.textContent = '';
+    } finally {
+        // Reset button
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.querySelector('i').className = 'fa-solid fa-language';
+        }
+    }
+}
+
+// Ctrl+Enter shortcut for translator
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const translatorWin = document.getElementById('win-translator');
+        if (translatorWin && translatorWin.style.display !== 'none') {
+            const srcText = document.getElementById('translator-source-text');
+            if (document.activeElement === srcText) {
+                translateText();
+                e.preventDefault();
+            }
+        }
+    }
+});
+
+// ===================== Media Players =====================
+
+function closeMediaWindow(winId) {
+    closeWindow(winId);
+    // Stop playback when closing
+    if (winId === 'video') {
+        const video = document.getElementById('video-element');
+        if (video) video.pause();
+    } else if (winId === 'music') {
+        const audio = document.getElementById('audio-element');
+        if (audio) audio.pause();
+    }
+}
+
+function loadVideoFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const videoEl = document.getElementById('video-element');
+    const emptyState = document.getElementById('video-empty-state');
+    
+    // Create object URL
+    const fileURL = URL.createObjectURL(file);
+    videoEl.src = fileURL;
+    
+    // Hide empty state, show video
+    emptyState.style.display = 'none';
+    videoEl.style.display = 'block';
+    
+    videoEl.play().catch(e => console.warn('Autoplay prevented:', e));
+}
+
+function loadAudioFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const audioEl = document.getElementById('audio-element');
+    const titleEl = document.getElementById('music-title');
+    const artistEl = document.getElementById('music-artist');
+    
+    // Clean up filename for display
+    let title = file.name;
+    title = title.replace(/\.[^/.]+$/, ""); // remove extension
+    
+    titleEl.textContent = title;
+    artistEl.textContent = "Local File";
+
+    // Create object URL
+    const fileURL = URL.createObjectURL(file);
+    audioEl.src = fileURL;
+    audioEl.style.display = 'block';
+    
+    audioEl.play().catch(e => console.warn('Autoplay prevented:', e));
 }
