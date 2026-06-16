@@ -94,9 +94,10 @@ function hideLoginModal() {
     }
 }
 
-async function apiCommand(op, args = {}) {
+async function apiCommand(op, args = {}, timeoutMs = null) {
     if (!isAuthed) throw new Error('Not authenticated');
-    const res = await fetch(`${BACKEND_URL}/api/command`, {
+    
+    let fetchOptions = {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -104,13 +105,30 @@ async function apiCommand(op, args = {}) {
         },
         credentials: 'include',
         body: JSON.stringify({ op, args })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        const err = data?.error || 'Request failed';
-        throw new Error(err);
+    };
+    
+    if (timeoutMs) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeoutMs);
+        fetchOptions.signal = controller.signal;
+        
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/command`, fetchOptions);
+            clearTimeout(id);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || 'Request failed');
+            return data;
+        } catch (e) {
+            clearTimeout(id);
+            if (e.name === 'AbortError') throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+            throw e;
+        }
+    } else {
+        const res = await fetch(`${BACKEND_URL}/api/command`, fetchOptions);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Request failed');
+        return data;
     }
-    return data;
 }
 
 // Best-effort dispatcher to keep existing UI calls working.
@@ -635,7 +653,7 @@ async function refreshProcesses() {
     taskListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading running tasks...</td></tr>';
     
     try {
-        const data = await apiExecuteLegacy('ps aux');
+        const data = await apiCommand('ps_aux', {});
         if (data.stderr) {
             taskListBody.innerHTML = `<tr><td colspan="6" style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</td></tr>`;
             return;
@@ -755,7 +773,7 @@ async function killProcess(pid, command) {
     if (!confirm(`Are you sure you want to terminate process ${pid} (${shortName})?`)) return;
 
     try {
-        const data = await apiExecuteLegacy(`kill -9 ${pid}`);
+        const data = await apiCommand('kill', { pid: pid });
         if (data && data.exit_code === 0) {
             showToast(`Terminated task ${pid}`);
             refreshProcesses();
@@ -802,7 +820,7 @@ async function initSystem() {
 
 async function testConnection() {
     try {
-        await apiExecuteLegacy('whoami');
+        await apiCommand('whoami', {});
         return true;
     } catch (e) {
         return false;
@@ -811,7 +829,7 @@ async function testConnection() {
 
 async function determineHomeDir() {
     try {
-        const data = await apiExecuteLegacy('pwd');
+        const data = await apiCommand('pwd', {});
         if (data.stdout) {
             currentPath = data.stdout.trim();
             updatePrompt();
@@ -879,7 +897,7 @@ async function refreshFiles() {
     fileListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading files...</div>';
     
     try {
-        const data = await apiExecuteLegacy(`ls -ap --group-directories-first "${currentPath}"`);
+        const data = await apiCommand('ls', { path: currentPath });
         if (data.stderr) {
             fileListContainer.innerHTML = `<div style="color: #ef4444; padding: 1rem;">Error: ${data.stderr}</div>`;
             return;
@@ -1077,7 +1095,7 @@ async function openFile(filename) {
         document.getElementById('editor-status').textContent = `Loading ${filename}...`;
         
         try {
-            const data = await apiExecuteLegacy(`cat "${filePath}"`);
+            const data = await apiCommand('cat', { path: filePath });
             if (data) {
                 const content = data.stdout || '';
                 
@@ -1209,6 +1227,9 @@ async function saveTab(path) {
 
 // Auto-Save interval every 5 seconds
 setInterval(async () => {
+    const autosaveToggle = document.getElementById('editor-autosave-toggle');
+    if (autosaveToggle && !autosaveToggle.checked) return;
+    
     for (const tab of openTabs) {
         if (tab.isDirty) {
             await saveTab(tab.path);
@@ -1216,14 +1237,23 @@ setInterval(async () => {
     }
 }, 5000);
 
+function isValidFilename(name) {
+    if (!name || name.trim() === '') return false;
+    if (name.includes('/') || name.includes('\\') || name.includes('..')) {
+        alert('Invalid file or folder name. Slashes and ".." are not allowed for security reasons.');
+        return false;
+    }
+    return true;
+}
+
 async function deleteItem(name, isDir) {
+    if (!isValidFilename(name)) return;
     if (false && !confirm(`Are you sure you want to delete "${name}"?`)) return;
     
     const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
-    const cmd = isDir ? `rm -rf "${targetPath}"` : `rm -f "${targetPath}"`;
     
     try {
-        const data = await apiExecuteLegacy(cmd);
+        const data = await apiCommand('rm_file', { path: targetPath, is_dir: isDir });
         if (data && !data.stderr) {
             showToast('Deleted successfully!');
             refreshFiles();
@@ -1237,11 +1267,11 @@ async function deleteItem(name, isDir) {
 
 async function promptCreateFile() {
     const name = prompt('Enter name for the new file:');
-    if (!name) return;
+    if (!isValidFilename(name)) return;
     const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
     
     try {
-        const data = await apiExecuteLegacy(`touch "${targetPath}"`);
+        const data = await apiCommand('touch', { path: targetPath });
         if (data && !data.stderr) {
             showToast('File created!');
             refreshFiles();
@@ -1254,11 +1284,11 @@ async function promptCreateFile() {
 
 async function promptCreateFolder() {
     const name = prompt('Enter name for the new folder:');
-    if (!name) return;
+    if (!isValidFilename(name)) return;
     const targetPath = currentPath.replace(/\/$/, '') + '/' + name;
     
     try {
-        const data = await apiExecuteLegacy(`mkdir -p "${targetPath}"`);
+        const data = await apiCommand('mkdir_p', { path: targetPath });
         if (data && !data.stderr) {
             showToast('Folder created!');
             refreshFiles();
@@ -1292,6 +1322,27 @@ termInput.addEventListener('keydown', (e) => {
         } else {
             historyIndex = commandHistory.length;
             termInput.value = '';
+        }
+    } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const input = termInput.value;
+        const parts = input.split(' ');
+        const lastPart = parts[parts.length - 1];
+        
+        if (lastPart.length > 0) {
+            apiCommand('ls', { path: terminalPwd }).then(data => {
+                if (data.stdout) {
+                    const files = data.stdout.trim().split('\n').filter(l => l && l !== './' && l !== '../');
+                    const matches = files.filter(f => f.startsWith(lastPart));
+                    if (matches.length === 1) {
+                        parts[parts.length - 1] = matches[0];
+                        termInput.value = parts.join(' ');
+                    } else if (matches.length > 1) {
+                        printOutput(`<span class="prompt">root@ubuntu-24.04:${terminalPwd}$</span> ${input}`);
+                        printOutput(matches.join('  '));
+                    }
+                }
+            }).catch(() => {});
         }
     }
 });
@@ -1368,15 +1419,48 @@ function printOutput(text, className = '') {
         div.style.color = '#a78bfa';
     }
 
-    div.innerHTML = text.replace(/\n/g, '<br>');
+    let parsedText = text.replace(/\x1b\[([0-9;]*)m/g, (match, codes) => {
+        if (codes === '0' || codes === '00' || codes === '') return '</span>';
+        let style = '';
+        const c = codes.split(';');
+        for (const code of c) {
+            if (code == '31') style += 'color: #ef4444; ';
+            else if (code == '32') style += 'color: #22c55e; ';
+            else if (code == '33') style += 'color: #eab308; ';
+            else if (code == '34') style += 'color: #3b82f6; ';
+            else if (code == '35') style += 'color: #a855f7; ';
+            else if (code == '36') style += 'color: #06b6d4; ';
+            else if (code == '1') style += 'font-weight: bold; ';
+        }
+        return style ? `<span style="${style}">` : '<span>';
+    });
+
+    div.innerHTML = parsedText.replace(/\n/g, '<br>');
     termBody.appendChild(div);
     termBody.scrollTop = termBody.scrollHeight;
 }
 
 // Notes Logic
+async function fetchWithRetry(url, options, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const res = await fetch(url, options);
+            if (res.ok) return res;
+            if (res.status >= 500 && i < maxRetries - 1) {
+                await new Promise(r => setTimeout(r, 500 * (i + 1)));
+                continue;
+            }
+            return res;
+        } catch (e) {
+            if (i === maxRetries - 1) throw e;
+            await new Promise(r => setTimeout(r, 500 * (i + 1)));
+        }
+    }
+}
+
 async function saveNotes() {
     try {
-        const response = await fetch('/api/db/notes', {
+        const response = await fetchWithRetry('/api/db/notes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: noteArea.value })
@@ -1394,7 +1478,7 @@ async function saveNotes() {
 
 async function saveSettings() {
     try {
-        await fetch('/api/db/settings', {
+        await fetchWithRetry('/api/db/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ settings: windows })
@@ -1575,8 +1659,8 @@ window.onload = async () => {
     if (ctxRename) {
         ctxRename.onclick = async () => {
             if (!currentContextMenuFile) return;
-            const newName = prompt(`Enter new name/path for "${currentContextMenuFile}":`, currentContextMenuFile);
-            if (!newName || newName.trim() === '' || newName === currentContextMenuFile) return;
+            const newName = prompt(`Enter new name for "${currentContextMenuFile}":`, currentContextMenuFile);
+            if (!isValidFilename(newName) || newName === currentContextMenuFile) return;
 
             const srcPath = currentPath.replace(/\/$/, '') + '/' + currentContextMenuFile;
             const destPath = currentPath.replace(/\/$/, '') + '/' + newName.trim();
@@ -2073,7 +2157,7 @@ async function openProperties(filename, isDir) {
     document.getElementById('properties-modal').classList.add('open');
     
     try {
-        const data = await apiExecuteLegacy(`stat -c "%A %a %U %G %s" "${targetPath}"`);
+        const data = await apiCommand('stat', { path: targetPath });
         if (data) {
             if (data.stdout) {
                 const parts = data.stdout.trim().split(/\s+/);
@@ -2138,7 +2222,7 @@ async function saveProperties() {
     const octalVal = `${u}${g}${o}`;
     
     try {
-        const data = await apiExecuteLegacy(`chmod ${octalVal} "${currentPropPath}"`);
+        const data = await apiCommand('chmod', { mode: octalVal.toString(), path: currentPropPath });
         if (data && data.exit_code === 0) {
             showToast(`Permissions updated to ${octalVal}`);
             closeProperties();
@@ -2164,17 +2248,8 @@ async function runNetworkDiagnostics() {
     
     outputBox.textContent = `Running ${tool} on ${host} inside Ubuntu, please wait...\n`;
     
-    let cmd = '';
-    if (tool === 'ping') {
-        cmd = `ping -c 4 "${host}"`;
-    } else if (tool === 'nslookup') {
-        cmd = `nslookup "${host}"`;
-    } else if (tool === 'nmap') {
-        cmd = `nmap -F "${host}"`;
-    }
-    
     try {
-        const data = await apiExecuteLegacy(cmd);
+        const data = await apiCommand('net_tool', { tool: tool, host: host }, 30000);
         let outText = '';
         if (data.stdout) outText += data.stdout;
         if (data.truncated_stdout) outText += '\n[Output truncated due to size limit]';
@@ -2192,7 +2267,7 @@ async function downloadFile(filename) {
     const filePath = currentPath.replace(/\/$/, '') + '/' + filename;
     showToast(`Downloading ${filename}...`);
     try {
-        const data = await apiExecuteLegacy(`cat "${filePath}"`);
+        const data = await apiCommand('cat', { path: filePath });
         if (data && data.stdout !== undefined) {
             const blob = new Blob([data.stdout], { type: 'application/octet-stream' });
             const url = window.URL.createObjectURL(blob);

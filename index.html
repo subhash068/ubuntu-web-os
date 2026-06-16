@@ -1203,7 +1203,12 @@
                 <div id="monaco-editor-container" style="flex: 1; width: 100%; height: 100%;"></div>
             </div>
             <div class="modal-footer">
-                <span id="editor-status" style="font-size: 0.8rem; color: var(--text-secondary); margin-right: auto; align-self: center;">All files saved</span>
+                <div style="display: flex; gap: 0.8rem; align-items: center; margin-right: auto; padding: 0 0.5rem;">
+                    <label style="font-size: 0.8rem; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                        <input type="checkbox" id="editor-autosave-toggle" checked style="accent-color: var(--accent-orange);"> Auto-Save
+                    </label>
+                    <span id="editor-status" style="font-size: 0.8rem; color: var(--text-secondary);">All files saved</span>
+                </div>
                 <button class="fm-btn" style="background: rgba(255,255,255,0.05); color: #fff; max-width: 100px;" onclick="closeEditor()">Close IDE</button>
                 <button class="fm-btn" style="background: var(--accent-orange); color: #fff; max-width: 120px;" onclick="saveActiveTab()">Save File</button>
             </div>
