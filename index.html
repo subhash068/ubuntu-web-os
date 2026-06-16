@@ -6,11 +6,14 @@
     <title>Ubuntu 24.04 Web OS Desktop</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=2">
     <!-- FontAwesome for Premium Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <!-- Math.js and Plotly.js for Calculator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
 </head>
 <body id="desktop-body">
     <!-- Main Desktop Environment Workspace -->
@@ -18,6 +21,10 @@
         
         <!-- Desktop Shortcuts (Require Double-Click) -->
         <div class="desktop-shortcuts">
+            <div class="shortcut" ondblclick="openWindow('calculator')">
+                <div class="shortcut-icon"><i class="fa-solid fa-calculator" style="color: #00ddff;"></i></div>
+                <div class="shortcut-name">Calculator</div>
+            </div>
             <div class="shortcut" ondblclick="openWindow('terminal')">
                 <div class="shortcut-icon"><i class="fa-solid fa-terminal"></i></div>
                 <div class="shortcut-name">Terminal</div>
@@ -239,7 +246,139 @@
             <div class="resize-handle" onmousedown="startResize(event, 'monitor')"></div>
         </div>
 
-        <!-- 4. Notes Window -->
+        <!-- 4. Calculator Window -->
+        <div class="window" id="win-calculator" style="top: 150px; left: 550px; width: 450px; height: 580px; z-index: 85; display: none; background: #1c1b22;">
+            <div class="window-header" onmousedown="startDrag(event, 'calculator')">
+                <div class="window-title">
+                    <i class="fa-solid fa-calculator" style="color: #00ddff;"></i>
+                    <span>Advanced Calculator</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('calculator')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('calculator')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('calculator')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 1rem; display: flex; flex-direction: column; height: calc(100% - 40px); gap: 10px;">
+                <!-- Calculator Tabs -->
+                <div style="display: flex; gap: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                    <button class="calc-tab active" onclick="switchCalcTab('standard')" id="calc-tab-standard">Standard</button>
+                    <button class="calc-tab" onclick="switchCalcTab('graphing')" id="calc-tab-graphing">Graphing</button>
+                    <button class="calc-tab" onclick="switchCalcTab('constants')" id="calc-tab-constants">Constants</button>
+                    <button class="calc-tab" onclick="switchCalcTab('statistics')" id="calc-tab-statistics">Statistics</button>
+                    <button class="calc-tab" onclick="switchCalcTab('solver')" id="calc-tab-solver">Solver</button>
+                </div>
+
+                <!-- Calculator Display -->
+                <div class="calc-display">
+                    <div class="calc-history" id="calc-history"></div>
+                    <input type="text" class="calc-input" id="calc-input" placeholder="0" autocomplete="off" onkeydown="if(event.key==='Enter') calcEvaluate()">
+                    <div class="calc-result" id="calc-result">= </div>
+                </div>
+
+                <!-- Standard Keypad -->
+                <div class="calc-keypad" id="calc-keypad-standard" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; flex: 1;">
+                    <!-- Row 1: Sci/Math -->
+                    <button class="calc-btn func" onclick="calcAppend('sin(')">sin</button>
+                    <button class="calc-btn func" onclick="calcAppend('cos(')">cos</button>
+                    <button class="calc-btn func" onclick="calcAppend('tan(')">tan</button>
+                    <button class="calc-btn func" onclick="calcAppend('log(')">log</button>
+                    <button class="calc-btn func" onclick="calcAppend('i')">i</button>
+                    <!-- Row 2: Sci/Math -->
+                    <button class="calc-btn func" onclick="calcAppend('sqrt(')">√</button>
+                    <button class="calc-btn func" onclick="calcAppend('^')">^</button>
+                    <button class="calc-btn func" onclick="calcAppend('pi')">π</button>
+                    <button class="calc-btn func" onclick="calcAppend('e')">e</button>
+                    <button class="calc-btn action" onclick="calcClear()">AC</button>
+                    <!-- Row 3: Numpad & Ops -->
+                    <button class="calc-btn func" onclick="calcAppend('(')">(</button>
+                    <button class="calc-btn func" onclick="calcAppend(')')">)</button>
+                    <button class="calc-btn func" onclick="calcAppend('det(')">det</button>
+                    <button class="calc-btn func" onclick="calcAppend('cross(')">cross</button>
+                    <button class="calc-btn action" onclick="calcBackspace()">DEL</button>
+                    <!-- Row 4 -->
+                    <button class="calc-btn num" onclick="calcAppend('7')">7</button>
+                    <button class="calc-btn num" onclick="calcAppend('8')">8</button>
+                    <button class="calc-btn num" onclick="calcAppend('9')">9</button>
+                    <button class="calc-btn op" onclick="calcAppend(' / ')">÷</button>
+                    <button class="calc-btn func" onclick="calcAppend('inv(')">inv</button>
+                    <!-- Row 5 -->
+                    <button class="calc-btn num" onclick="calcAppend('4')">4</button>
+                    <button class="calc-btn num" onclick="calcAppend('5')">5</button>
+                    <button class="calc-btn num" onclick="calcAppend('6')">6</button>
+                    <button class="calc-btn op" onclick="calcAppend(' * ')">×</button>
+                    <button class="calc-btn func" onclick="calcAppend('[')">[</button>
+                    <!-- Row 6 -->
+                    <button class="calc-btn num" onclick="calcAppend('1')">1</button>
+                    <button class="calc-btn num" onclick="calcAppend('2')">2</button>
+                    <button class="calc-btn num" onclick="calcAppend('3')">3</button>
+                    <button class="calc-btn op" onclick="calcAppend(' - ')">-</button>
+                    <button class="calc-btn func" onclick="calcAppend(']')">]</button>
+                    <!-- Row 7 -->
+                    <button class="calc-btn num" onclick="calcAppend('0')">0</button>
+                    <button class="calc-btn num" onclick="calcAppend('.')">.</button>
+                    <button class="calc-btn num" onclick="calcAppend(',')">,</button>
+                    <button class="calc-btn op" onclick="calcAppend(' + ')">+</button>
+                    <button class="calc-btn action eval" onclick="calcEvaluate()">=</button>
+                </div>
+
+                <!-- Graphing Panel -->
+                <div class="calc-keypad" id="calc-keypad-graphing" style="display: none; flex-direction: column; flex: 1; gap: 10px;">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="calc-graph-func" class="term-input" style="flex: 1; background: rgba(0,0,0,0.3);" placeholder="f(x) = sin(x)" onkeydown="if(event.key==='Enter') calcGraph()">
+                        <button class="fm-btn" style="background: var(--accent-orange); color: white;" onclick="calcGraph()">Plot</button>
+                    </div>
+                    <div id="calc-plot" style="flex: 1; background: #fff; border-radius: 4px; overflow: hidden;"></div>
+                </div>
+
+                <!-- Constants Panel -->
+                <div class="calc-keypad" id="calc-keypad-constants" style="display: none; grid-template-columns: repeat(2, 1fr); gap: 8px; flex: 1; overflow-y: auto; padding-right: 5px;">
+                    <button class="calc-btn func" onclick="calcAppend('SPEED_OF_LIGHT')">Speed of Light (c)</button>
+                    <button class="calc-btn func" onclick="calcAppend('PLANCK_CONSTANT')">Planck const (h)</button>
+                    <button class="calc-btn func" onclick="calcAppend('GRAVITY')">Gravity (g)</button>
+                    <button class="calc-btn func" onclick="calcAppend('AVOGADRO')">Avogadro (NA)</button>
+                    <button class="calc-btn func" onclick="calcAppend('FARADAY')">Faraday (F)</button>
+                    <button class="calc-btn func" onclick="calcAppend('GAS_CONSTANT')">Gas Const (R)</button>
+                    <button class="calc-btn func" onclick="calcAppend('BOLTZMANN')">Boltzmann (k)</button>
+                    <button class="calc-btn func" onclick="calcAppend('MAGNETIC_CONSTANT')">Mag Const (μ0)</button>
+                    
+                    <div style="grid-column: span 2; margin-top: 10px; color: var(--text-secondary); font-size: 0.85rem;">Unit Conversions (Examples)</div>
+                    <button class="calc-btn func" onclick="calcAppend('5 cm to inch')">cm → inch</button>
+                    <button class="calc-btn func" onclick="calcAppend('10 kg to lb')">kg → lb</button>
+                    <button class="calc-btn func" onclick="calcAppend('20 degC to degF')">°C → °F</button>
+                    <button class="calc-btn func" onclick="calcAppend('100 km/h to m/s')">km/h → m/s</button>
+                </div>
+
+                <!-- Statistics Panel -->
+                <div class="calc-keypad" id="calc-keypad-statistics" style="display: none; flex-direction: column; flex: 1; gap: 10px;">
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Data Set (comma separated):</div>
+                    <input type="text" id="calc-stat-data" class="term-input" style="background: rgba(0,0,0,0.3);" placeholder="e.g. 1, 2, 3, 4, 5">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px;">
+                        <button class="calc-btn func" onclick="calcStat('mean')">Mean</button>
+                        <button class="calc-btn func" onclick="calcStat('median')">Median</button>
+                        <button class="calc-btn func" onclick="calcStat('mode')">Mode</button>
+                        <button class="calc-btn func" onclick="calcStat('std')">Std Dev</button>
+                        <button class="calc-btn func" onclick="calcStat('var')">Variance</button>
+                        <button class="calc-btn func" onclick="calcStat('sum')">Sum</button>
+                    </div>
+                </div>
+
+                <!-- Solver Panel -->
+                <div class="calc-keypad" id="calc-keypad-solver" style="display: none; flex-direction: column; flex: 1; gap: 10px;">
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Evaluate algebraic expressions & simplified equations:</div>
+                    <input type="text" id="calc-solve-expr" class="term-input" style="background: rgba(0,0,0,0.3);" placeholder="e.g. derivative('x^2', 'x')" onkeydown="if(event.key==='Enter') calcSolve()">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px;">
+                        <button class="calc-btn func" onclick="document.getElementById('calc-solve-expr').value = 'derivative(\'x^2\', \'x\')'">Derivative</button>
+                        <button class="calc-btn func" onclick="document.getElementById('calc-solve-expr').value = 'simplify(\'2 * x + x\')'">Simplify</button>
+                        <button class="calc-btn func" onclick="document.getElementById('calc-solve-expr').value = 'solve([\'x + y = 5\', \'x - y = 1\'], [\'x\', \'y\'])'">Linear System</button>
+                    </div>
+                    <button class="fm-btn" style="background: var(--accent-orange); color: white; margin-top: auto;" onclick="calcSolve()">Calculate</button>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'calculator')"></div>
+        </div>
+
+        <!-- 5. Notes Window -->
         <div class="window" id="win-notes" style="top: 120px; left: 800px; width: 450px; height: 350px; z-index: 75; display: none;">
             <div class="window-header" onmousedown="startDrag(event, 'notes')">
                 <div class="window-title">
@@ -745,25 +884,66 @@
 
         <!-- 11. Firefox Browser Window -->
         <div class="window" id="win-browser" style="top: 120px; left: 120px; width: 720px; height: 520px; z-index: 81; display: none;">
-            <div class="window-header" onmousedown="startDrag(event, 'browser')">
-                <div class="window-title">
-                    <i class="fa-brands fa-firefox-browser"></i>
-                    <span>Firefox Browser</span>
+            <div class="window-header" onmousedown="startDrag(event, 'browser')" style="background: #1c1b22; padding: 0.5rem 1rem 0 0.5rem; height: auto; border-bottom: none; display: flex; align-items: flex-end; gap: 8px;">
+                <div style="width: 4px; height: 100%;"></div>
+                <!-- Active Tab -->
+                <div style="background: #2b2a33; padding: 8px 12px; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #fbfbfe; position: relative; max-width: 240px; flex: 1; min-width: 150px; box-shadow: 0 -1px 2px rgba(0,0,0,0.2);">
+                    <i class="fa-brands fa-firefox-browser" style="color: #ff9500;"></i>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" id="browser-tab-title" title="Firefox Browser">Firefox Browser</span>
+                    <i class="fa-solid fa-xmark" style="font-size: 1rem; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.7; transition: 0.2s;" onclick="closeWindow('browser')" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='none'; this.style.opacity='0.7'"></i>
                 </div>
-                <div class="window-controls">
+                <!-- Add Tab Button -->
+                <div style="padding: 8px; color: #fbfbfe; opacity: 0.7; cursor: pointer; margin-bottom: 4px; border-radius: 4px; transition: 0.2s; font-size: 0.9rem;" onclick="navigateBrowser('https://start.ubuntu.com')" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='none'; this.style.opacity='0.7'" title="New Tab">
+                    <i class="fa-solid fa-plus"></i>
+                </div>
+                <div style="flex: 1;"></div>
+                <div class="window-controls" style="margin-bottom: 8px; align-items: center; justify-content: center; display: flex;">
                     <button class="win-btn win-min" onclick="minimizeWindow('browser')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
                     <button class="win-btn win-max" onclick="toggleMaximize('browser')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
                     <button class="win-btn win-close" onclick="closeWindow('browser')" title="Close"><i class="fa-solid fa-xmark"></i></button>
                 </div>
             </div>
-            <div class="window-body" style="display: flex; flex-direction: column; height: calc(100% - 40px); overflow: hidden; background: #0c0d15;">
+            <div class="window-body" style="display: flex; flex-direction: column; height: calc(100% - 46px); overflow: hidden; background: #2b2a33; position: relative;">
                 <!-- Browser Navbar -->
-                <div class="browser-navbar" style="display: flex; gap: 0.5rem; align-items: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); flex: none;">
-                    <button class="fm-btn" onclick="browserGoBack()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-arrow-left"></i></button>
-                    <button class="fm-btn" onclick="browserGoForward()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-arrow-right"></i></button>
-                    <button class="fm-btn" onclick="browserRefresh()" style="flex: none; width: 32px; height: 32px; padding: 0;"><i class="fa-solid fa-rotate-right"></i></button>
-                    <input type="text" id="browser-url-input" value="https://start.ubuntu.com" class="term-input" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 0.4rem 0.8rem; border-radius: 6px; flex: 1; font-size: 0.8rem; color: #fff;" onkeydown="if(event.key==='Enter') navigateBrowser(this.value)">
-                    <button class="fm-btn" onclick="navigateBrowser(document.getElementById('browser-url-input').value)" style="flex: none; width: 60px; height: 32px; font-size: 0.8rem;">Go</button>
+                <div class="browser-navbar" style="display: flex; gap: 0.4rem; align-items: center; background: #2b2a33; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(0, 0, 0, 0.5); flex: none;">
+                    <button class="fm-btn" onclick="browserGoBack()" style="flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: none; background: transparent; color: #fbfbfe; opacity: 0.8; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='transparent'; this.style.opacity='0.8'"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button class="fm-btn" onclick="browserGoForward()" style="flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: none; background: transparent; color: #fbfbfe; opacity: 0.4; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'"><i class="fa-solid fa-arrow-right"></i></button>
+                    <button class="fm-btn" onclick="browserRefresh()" style="flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: none; background: transparent; color: #fbfbfe; opacity: 0.8; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='transparent'; this.style.opacity='0.8'"><i class="fa-solid fa-rotate-right"></i></button>
+                    
+                    <div style="display: flex; flex: 1; align-items: center; background: #1c1b22; border-radius: 20px; padding: 0 12px; border: 1px solid transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); transition: 0.2s; margin: 0 4px;">
+                        <i class="fa-solid fa-lock" style="color: #fbfbfe; opacity: 0.5; font-size: 0.75rem;" title="Site Information" onclick="showToast('Connection is secure')"></i>
+                        <input type="text" id="browser-url-input" value="https://start.ubuntu.com" style="background: transparent; border: none; padding: 0.5rem 0.8rem; flex: 1; font-size: 0.85rem; color: #fbfbfe; outline: none; font-family: inherit; width: 100%;" onkeydown="if(event.key==='Enter') navigateBrowser(this.value)">
+                        <i class="fa-regular fa-star" id="browser-star-btn" style="color: #fbfbfe; opacity: 0.5; font-size: 0.9rem; cursor: pointer; transition: 0.2s;" onclick="this.className='fa-solid fa-star'; this.style.color='#00ddff'; showToast('Bookmark added')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'" title="Bookmark this page"></i>
+                    </div>
+                    
+                    <button class="fm-btn" style="flex: none; width: 34px; height: 34px; padding: 0; border-radius: 4px; border: none; background: transparent; color: #fbfbfe; opacity: 0.8; transition: 0.2s;" onclick="showToast('Extensions menu')" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='transparent'; this.style.opacity='0.8'" title="Extensions"><i class="fa-solid fa-puzzle-piece"></i></button>
+                    <button class="fm-btn" style="flex: none; width: 34px; height: 34px; padding: 0; border-radius: 4px; border: none; background: transparent; color: #fbfbfe; opacity: 0.8; transition: 0.2s;" onclick="toggleBrowserMenu(event)" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.opacity='1'" onmouseout="this.style.background='transparent'; this.style.opacity='0.8'" title="Application Menu"><i class="fa-solid fa-bars"></i></button>
+                </div>
+                <!-- Browser Sidebar -->
+                <div id="browser-menu-dropdown" style="display: flex; position: absolute; top: 46px; right: 0; bottom: 0; width: 220px; background: #2b2a33; border-left: 1px solid rgba(0,0,0,0.5); box-shadow: -4px 0 15px rgba(0,0,0,0.5); z-index: 1000; flex-direction: column; color: #fbfbfe; font-size: 0.85rem; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); visibility: hidden;">
+                    <div style="padding: 12px 16px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between;">
+                        <span>Browser Menu</span>
+                        <i class="fa-solid fa-xmark" style="cursor: pointer; opacity: 0.7; font-size: 1.1rem; transition: 0.2s;" onclick="toggleBrowserMenu(event)" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'"></i>
+                    </div>
+                    <div style="padding: 8px 0; overflow-y: auto; flex: 1;">
+                        <div style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'" onclick="navigateBrowser('https://start.ubuntu.com'); toggleBrowserMenu()">
+                            <i class="fa-solid fa-plus" style="width: 16px; text-align: center;"></i> New Tab
+                        </div>
+                        <div style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'" onclick="navigateBrowser('about:history'); toggleBrowserMenu()">
+                            <i class="fa-solid fa-clock-rotate-left" style="width: 16px; text-align: center;"></i> History
+                        </div>
+                        <div style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'" onclick="navigateBrowser('about:downloads'); toggleBrowserMenu()">
+                            <i class="fa-solid fa-download" style="width: 16px; text-align: center;"></i> Downloads
+                        </div>
+                        <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0;"></div>
+                        <div style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'" onclick="navigateBrowser('about:settings'); toggleBrowserMenu()">
+                            <i class="fa-solid fa-gear" style="width: 16px; text-align: center;"></i> Settings
+                        </div>
+                        <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0;"></div>
+                        <div style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'" onclick="closeWindow('browser'); toggleBrowserMenu()">
+                            <i class="fa-solid fa-xmark" style="width: 16px; text-align: center;"></i> Exit Firefox
+                        </div>
+                    </div>
                 </div>
                 <!-- Browser Frame -->
                 <div style="flex: 1; position: relative; width: 100%;">

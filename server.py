@@ -5,7 +5,81 @@ import time
 import secrets
 import subprocess
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urljoin
+import pg8000.dbapi
+from browser import handle_proxy_request
+
+# =============== Database config ===============
+DB_HOST = os.environ.get('OS_WEBOS_DB_HOST', 'localhost')
+DB_PORT = os.environ.get('OS_WEBOS_DB_PORT', '5432')
+DB_USER = os.environ.get('OS_WEBOS_DB_USER', 'postgres')
+DB_PASS = os.environ.get('OS_WEBOS_DB_PASS', 'manager')
+DB_NAME = os.environ.get('OS_WEBOS_DB_NAME', 'ubuntu_web_os')
+
+def get_db_connection():
+    try:
+        conn = pg8000.dbapi.connect(
+            host=DB_HOST,
+            port=int(DB_PORT),
+            user=DB_USER,
+            password=DB_PASS,
+            database=DB_NAME
+        )
+        return conn
+    except Exception as e:
+        print(f"Warning: Database connection failed. {e}")
+        return None
+
+def init_db():
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Create table for notes
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS os_notes (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Create table for settings (windows layout, background, etc)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS os_settings (
+                    id SERIAL PRIMARY KEY,
+                    settings JSONB NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Create table for sessions
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS os_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    csrf TEXT NOT NULL,
+                    exp FLOAT NOT NULL
+                )
+            """)
+            # Ensure at least one row exists for each
+            cur.execute("SELECT COUNT(*) FROM os_notes")
+            if cur.fetchone()[0] == 0:
+                cur.execute("INSERT INTO os_notes (content) VALUES ('')")
+            
+            cur.execute("SELECT COUNT(*) FROM os_settings")
+            if cur.fetchone()[0] == 0:
+                cur.execute("INSERT INTO os_settings (settings) VALUES ('{}'::jsonb)")
+            conn.commit()
+            conn.commit()
+            cur.close()
+            print("Database initialized successfully.")
+        except Exception as e:
+            print(f"Failed to initialize tables: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+
+# Initialize tables on startup
+init_db()
 
 # =============== Security config ===============
 SESSION_SECRET = os.environ.get('OS_WEBOS_SESSION_SECRET', 'dev-change-me')
@@ -85,7 +159,16 @@ def _new_session(user: str):
     session_id = secrets.token_urlsafe(24)
     csrf = secrets.token_urlsafe(24)
     exp = int(time.time()) + SESSION_TTL_SEC
-    SESSIONS[session_id] = {'user': user, 'csrf': csrf, 'exp': exp}
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO os_sessions (session_id, username, csrf, exp) VALUES (%s, %s, %s, %s)",
+                        (session_id, user, csrf, exp))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
     return session_id, csrf
 
 def _validate_session(handler):
@@ -98,11 +181,32 @@ def _validate_session(handler):
     if not hmac.compare_digest(expected, sig):
         return None
 
-    sess = SESSIONS.get(session_id)
+    conn = get_db_connection()
+    sess = None
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT username, csrf, exp FROM os_sessions WHERE session_id = %s", (session_id,))
+            res = cur.fetchone()
+            if res:
+                sess = {'user': res[0], 'csrf': res[1], 'exp': res[2]}
+            cur.close()
+        finally:
+            conn.close()
+
     if not sess:
         return None
     if int(time.time()) > sess.get('exp', 0):
-        SESSIONS.pop(session_id, None)
+        # Delete expired session
+        conn = get_db_connection()
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("DELETE FROM os_sessions WHERE session_id = %s", (session_id,))
+                conn.commit()
+                cur.close()
+            finally:
+                conn.close()
         return None
     return session_id, sess
 
@@ -395,121 +499,7 @@ def execute_allowed(op: str, args: dict):
         'truncated_stderr': stderr_trunc
     }
 
-def _handle_proxy_request(handler, target_url):
-    from urllib.parse import urljoin, quote
-    import urllib.request
-    import urllib.error
-    import re
-    
-    try:
-        req = urllib.request.Request(
-            target_url,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        )
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            content_type = response.headers.get('Content-Type', 'application/octet-stream')
-            content = response.read()
-            
-            if 'text/html' in content_type:
-                try:
-                    html = content.decode('utf-8', errors='ignore')
-                    base_url = target_url
-                    
-                    def replace_url(match):
-                        attr = match.group(1)
-                        val = match.group(2)
-                        if val.startswith('/api/proxy') or val.startswith('/proxy/') or val.startswith('#') or val.startswith('javascript:') or val.startswith('data:'):
-                            return match.group(0)
-                        absolute = urljoin(base_url, val)
-                        if absolute.startswith('https://'):
-                            proxy_path = '/proxy/https/' + absolute[8:]
-                        elif absolute.startswith('http://'):
-                            proxy_path = '/proxy/http/' + absolute[7:]
-                        else:
-                            proxy_path = absolute
-                        return f'{attr}="{proxy_path}"'
-                        
-                    html = re.sub(r'(href|src|action)=["\']([^"\']+)["\']', replace_url, html)
-                    
-                    # Inject fetch/XHR overrides
-                    injection = """<script>
-(function() {
-    const origin = window.location.origin;
-    const proxyPrefixHttps = origin + '/proxy/https/';
-    const proxyPrefixHttp = origin + '/proxy/http/';
 
-    function toProxyUrl(url) {
-        if (!url) return url;
-        let str = String(url);
-        if (str.startsWith(proxyPrefixHttps) || str.startsWith(proxyPrefixHttp) || str.startsWith(origin + '/api/proxy')) {
-            return url;
-        }
-        let absUrl;
-        try {
-            absUrl = new URL(url, window.location.href).href;
-        } catch(e) {
-            return url;
-        }
-        if (absUrl.startsWith('https://')) {
-            return proxyPrefixHttps + absUrl.substring(8);
-        } else if (absUrl.startsWith('http://')) {
-            return proxyPrefixHttp + absUrl.substring(7);
-        }
-        return url;
-    }
-
-    const originalFetch = window.fetch;
-    window.fetch = function(input, init) {
-        if (typeof input === 'string') {
-            input = toProxyUrl(input);
-        } else if (input && input.url) {
-            try {
-                const newUrl = toProxyUrl(input.url);
-                input = new Request(newUrl, input);
-            } catch(e) {}
-        }
-        return originalFetch(input, init);
-    };
-
-    const originalOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-        url = toProxyUrl(url);
-        return originalOpen.apply(this, arguments);
-    };
-})();
-</script>"""
-                    if '<head>' in html:
-                        html = html.replace('<head>', '<head>' + injection, 1)
-                    elif '<html>' in html:
-                        html = html.replace('<html>', '<html>' + injection, 1)
-                    else:
-                        html = injection + html
-                        
-                    content = html.encode('utf-8', errors='ignore')
-                except Exception:
-                    pass
-                    
-            handler.send_response(200)
-            handler.send_header('Content-Type', content_type)
-            handler.send_header('Content-Length', str(len(content)))
-            handler.end_headers()
-            handler.wfile.write(content)
-            return
-    except urllib.error.HTTPError as e:
-        handler.send_response(e.code)
-        handler.send_header('Content-Type', e.headers.get('Content-Type', 'text/html'))
-        content = e.read()
-        handler.send_header('Content-Length', str(len(content)))
-        handler.end_headers()
-        handler.wfile.write(content)
-        return
-    except Exception as e:
-        handler.send_response(500)
-        handler.send_header('Content-Type', 'text/html')
-        handler.end_headers()
-        handler.wfile.write(f"<h2>Proxy Error</h2><p>Failed to load URL {target_url}: {str(e)}</p>".encode('utf-8'))
-        return
 
 class UbuntuOSHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -527,6 +517,51 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         
+        # Database endpoints
+        if parsed.path == '/api/db/notes':
+            try:
+                conn = get_db_connection()
+                if conn:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("SELECT content FROM os_notes ORDER BY id DESC LIMIT 1")
+                        res = cur.fetchone()
+                        content = res[0] if res else ''
+                        cur.close()
+                        _json_response(self, 200, {'content': content})
+                        return
+                    finally:
+                        conn.close()
+                _json_response(self, 500, {'error': 'Database connection failed'})
+                return
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                _json_response(self, 500, {'error': str(e)})
+                return
+
+        if parsed.path == '/api/db/settings':
+            try:
+                conn = get_db_connection()
+                if conn:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("SELECT settings FROM os_settings ORDER BY id DESC LIMIT 1")
+                        res = cur.fetchone()
+                        settings = res[0] if res else {}
+                        cur.close()
+                        _json_response(self, 200, {'settings': settings})
+                        return
+                    finally:
+                        conn.close()
+                _json_response(self, 500, {'error': 'Database connection failed'})
+                return
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                _json_response(self, 500, {'error': str(e)})
+                return
+        
         # Check if it targets the path-based proxy directly
         if parsed.path.startswith('/proxy/https/') or parsed.path.startswith('/proxy/http/'):
             is_https = parsed.path.startswith('/proxy/https/')
@@ -535,7 +570,7 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
             target_url = scheme + parsed.path[prefix_len:]
             if parsed.query:
                 target_url += '?' + parsed.query
-            _handle_proxy_request(self, target_url)
+            handle_proxy_request(self, target_url, method='GET')
             return
             
         # Check if it targets the query-based proxy directly
@@ -546,7 +581,7 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
             if not target_url:
                 _json_response(self, 400, {'error': 'Missing url parameter'})
                 return
-            _handle_proxy_request(self, target_url)
+            handle_proxy_request(self, target_url, method='GET')
             return
 
         # Check if the requested path is a local file, directory, or local API endpoint
@@ -582,17 +617,85 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
             if ref_target:
                 from urllib.parse import urljoin
                 target_url = urljoin(ref_target, self.path)
-                _handle_proxy_request(self, target_url)
+                handle_proxy_request(self, target_url, method='GET')
                 return
 
         super().do_GET()
 
     def do_OPTIONS(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith('/proxy/https/') or parsed.path.startswith('/proxy/http/'):
+            is_https = parsed.path.startswith('/proxy/https/')
+            prefix_len = len('/proxy/https/') if is_https else len('/proxy/http/')
+            scheme = 'https://' if is_https else 'http://'
+            target_url = scheme + parsed.path[prefix_len:]
+            if parsed.query:
+                target_url += '?' + parsed.query
+            handle_proxy_request(self, target_url, method='OPTIONS')
+            return
+            
         self.send_response(200)
         self.end_headers()
 
     def do_POST(self):
+        parsed = urlparse(self.path)
+        
+        # Proxy POST requests
+        if parsed.path.startswith('/proxy/https/') or parsed.path.startswith('/proxy/http/'):
+            is_https = parsed.path.startswith('/proxy/https/')
+            prefix_len = len('/proxy/https/') if is_https else len('/proxy/http/')
+            scheme = 'https://' if is_https else 'http://'
+            target_url = scheme + parsed.path[prefix_len:]
+            if parsed.query:
+                target_url += '?' + parsed.query
+            handle_proxy_request(self, target_url, method='POST')
+            return
+            
         global SESSION_USER, SESSION_PASS
+        
+        # Database endpoints
+        if self.path == '/api/db/notes':
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': 'Invalid payload'})
+                return
+            content = data.get('content', '')
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute("INSERT INTO os_notes (content) VALUES (%s)", (content,))
+                    conn.commit()
+                    cur.close()
+                    _json_response(self, 200, {'success': True})
+                    return
+                finally:
+                    conn.close()
+            _json_response(self, 500, {'error': 'Database connection failed'})
+            return
+
+        if self.path == '/api/db/settings':
+            data = _read_limited_json(self)
+            if not data or data.get('__error__'):
+                _json_response(self, 400, {'error': 'Invalid payload'})
+                return
+            
+            import json as json_mod
+            settings_str = json_mod.dumps(data.get('settings', {}))
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute("INSERT INTO os_settings (settings) VALUES (%s::jsonb)", (settings_str,))
+                    conn.commit()
+                    cur.close()
+                    _json_response(self, 200, {'success': True})
+                    return
+                finally:
+                    conn.close()
+            _json_response(self, 500, {'error': 'Database connection failed'})
+            return
+            
         # Auth/login endpoints
         if self.path == '/api/login':
             data = _read_limited_json(self)
@@ -691,7 +794,15 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
             vs = _validate_session(self)
             if vs:
                 session_id, _sess = vs
-                SESSIONS.pop(session_id, None)
+                conn = get_db_connection()
+                if conn:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("DELETE FROM os_sessions WHERE session_id = %s", (session_id,))
+                        conn.commit()
+                        cur.close()
+                    finally:
+                        conn.close()
             self.send_response(200)
             self.send_header('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
             self.send_header('Set-Cookie', 'session_sig=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')

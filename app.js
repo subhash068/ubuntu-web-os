@@ -226,6 +226,7 @@ let runningProcesses = []; // Cached processes for fast local filtering
 
 // ================= Window Manager State & Logic =================
 const windows = {
+    calculator: { active: false, min: false, max: false, x: 550, y: 150, w: 450, h: 580, icon: 'fa-calculator', name: 'Calculator' },
     terminal: { active: true, min: false, max: false, x: 80, y: 80, w: 620, h: 420, icon: 'fa-terminal', name: 'Terminal' },
     files: { active: false, min: false, max: false, x: 450, y: 100, w: 550, h: 420, icon: 'fa-folder-open', name: 'Files' },
     monitor: { active: false, min: false, max: false, x: 150, y: 250, w: 480, h: 350, icon: 'fa-chart-line', name: 'Monitor' },
@@ -306,6 +307,142 @@ function toggleMaximize(winId) {
     }
 }
 
+// ================= Calculator Logic =================
+let calcScope = {};
+
+function calcAppend(val) {
+    const input = document.getElementById('calc-input');
+    if (!input) return;
+    input.value += val;
+    input.focus();
+}
+
+function calcClear() {
+    document.getElementById('calc-input').value = '';
+    document.getElementById('calc-result').innerText = '= ';
+    calcScope = {}; // Reset variables if AC pressed
+}
+
+function calcBackspace() {
+    const input = document.getElementById('calc-input');
+    input.value = input.value.slice(0, -1);
+}
+
+function calcEvaluate() {
+    const input = document.getElementById('calc-input');
+    const historyDiv = document.getElementById('calc-history');
+    const resultDiv = document.getElementById('calc-result');
+    const expression = input.value.trim();
+    if (!expression) return;
+
+    try {
+        if (typeof math === 'undefined') {
+            resultDiv.innerText = '= Error: math.js not loaded';
+            return;
+        }
+        
+        let result = math.evaluate(expression, calcScope);
+        
+        // Format the output specifically to handle complex outputs like matrices
+        let formattedResult = math.format(result, { precision: 14 });
+        
+        historyDiv.innerText = expression;
+        resultDiv.innerText = '= ' + formattedResult;
+        input.value = '';
+    } catch (err) {
+        resultDiv.innerText = '= ' + err.message;
+    }
+}
+
+function switchCalcTab(tab) {
+    const tabs = ['standard', 'graphing', 'constants', 'statistics', 'solver'];
+    tabs.forEach(t => {
+        const btn = document.getElementById('calc-tab-' + t);
+        if (btn) btn.classList.remove('active');
+        const panel = document.getElementById('calc-keypad-' + t);
+        if (panel) panel.style.display = 'none';
+    });
+    
+    document.getElementById('calc-tab-' + tab).classList.add('active');
+    document.getElementById('calc-keypad-' + tab).style.display = (tab === 'standard' || tab === 'constants') ? 'grid' : 'flex';
+}
+
+function calcStat(operation) {
+    const dataInput = document.getElementById('calc-stat-data').value;
+    const historyDiv = document.getElementById('calc-history');
+    const resultDiv = document.getElementById('calc-result');
+    if (!dataInput || typeof math === 'undefined') return;
+
+    try {
+        const dataArray = dataInput.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+        if (dataArray.length === 0) throw new Error('Invalid data');
+
+        let result;
+        switch (operation) {
+            case 'mean': result = math.mean(dataArray); break;
+            case 'median': result = math.median(dataArray); break;
+            case 'mode': result = math.mode(dataArray); break;
+            case 'std': result = math.std(dataArray); break;
+            case 'var': result = math.variance(dataArray); break;
+            case 'sum': result = math.sum(dataArray); break;
+        }
+
+        historyDiv.innerText = `${operation}([${dataArray.join(', ')}])`;
+        resultDiv.innerText = '= ' + math.format(result, { precision: 14 });
+    } catch (err) {
+        resultDiv.innerText = '= Error: ' + err.message;
+    }
+}
+
+function calcSolve() {
+    const input = document.getElementById('calc-solve-expr').value.trim();
+    const historyDiv = document.getElementById('calc-history');
+    const resultDiv = document.getElementById('calc-result');
+    if (!input || typeof math === 'undefined') return;
+
+    try {
+        const result = math.evaluate(input);
+        historyDiv.innerText = input;
+        resultDiv.innerText = '= ' + math.format(result, { precision: 14 });
+    } catch (err) {
+        resultDiv.innerText = '= Error: ' + err.message;
+    }
+}
+
+function calcGraph() {
+    const funcInput = document.getElementById('calc-graph-func').value.trim();
+    if (!funcInput || typeof math === 'undefined' || typeof Plotly === 'undefined') return;
+
+    try {
+        const compiled = math.compile(funcInput.replace(/^f\(x\)\s*=\s*/, ''));
+        
+        const xValues = math.range(-10, 10, 0.1).toArray();
+        const yValues = xValues.map(function (x) {
+            return compiled.evaluate({ x: x });
+        });
+
+        const trace = {
+            x: xValues,
+            y: yValues,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#00ddff' }
+        };
+
+        const layout = {
+            margin: { t: 10, b: 20, l: 30, r: 10 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            xaxis: { gridcolor: 'rgba(0,0,0,0.1)' },
+            yaxis: { gridcolor: 'rgba(0,0,0,0.1)' }
+        };
+
+        Plotly.newPlot('calc-plot', [trace], layout, { staticPlot: false, displayModeBar: false });
+    } catch (err) {
+        alert('Graphing error: ' + err.message);
+    }
+}
+
 // Close window
 function closeWindow(winId) {
     const win = windows[winId];
@@ -314,6 +451,7 @@ function closeWindow(winId) {
     win.active = false;
     winEl.style.display = 'none';
     updateTaskbarBadges();
+    saveSettings();
 }
 
 // Drag functionality
@@ -384,6 +522,7 @@ function handleDragEnd() {
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleDragEnd);
     activeDrag = null;
+    saveSettings();
 }
 
 // Taskbar Indicators
@@ -734,16 +873,9 @@ async function fetchSystemStats() {
 }
 
 // ================= File Manager Logic =================
-function updatePrompt() {
-    const promptLabel = document.getElementById('prompt-label');
-    if (promptLabel) {
-        promptLabel.textContent = `root@ubuntu:${currentPath}$`;
-    }
-}
 
 async function refreshFiles() {
     currentDirLabel.textContent = currentPath;
-    updatePrompt();
     fileListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading files...</div>';
     
     try {
@@ -1164,18 +1296,40 @@ termInput.addEventListener('keydown', (e) => {
     }
 });
 
+let terminalPwd = '~';
+
 async function sendTerminalCommand(command) {
     if (command.toLowerCase() === 'clear') {
         termBody.innerHTML = '';
         return;
     }
 
-    printOutput(`<span class="prompt">root@ubuntu-24.04:~$</span> ${command}`);
+    printOutput(`<span class="prompt">root@ubuntu-24.04:${terminalPwd}$</span> ${command}`);
+
+    // Wrap command to execute in current PWD, then print a delimiter and the new PWD
+    const delimiter = "___PWD_END___";
+    const execPwd = terminalPwd === '~' || terminalPwd.startsWith('~/') ? terminalPwd.replace('~', '/root') : terminalPwd;
+    const wrappedCommand = `cd "${execPwd}" && ${command}; echo "${delimiter}"; pwd`;
 
     try {
-        const data = await apiCommand('run_raw', { command });
-        if (data && data.stdout) {
-            printOutput(data.stdout);
+        const data = await apiCommand('run_raw', { command: wrappedCommand });
+        let stdout = data?.stdout || '';
+        
+        // Extract the new PWD from the end of stdout
+        const lines = stdout.trim().split('\n');
+        const delimiterIdx = lines.lastIndexOf(delimiter);
+        if (delimiterIdx !== -1 && delimiterIdx + 1 < lines.length) {
+            let newPwd = lines[delimiterIdx + 1].trim();
+            if (newPwd.startsWith('/root')) {
+                newPwd = newPwd.replace('/root', '~');
+            }
+            terminalPwd = newPwd;
+            // Remove the delimiter and pwd from the output
+            stdout = lines.slice(0, delimiterIdx).join('\n');
+        }
+
+        if (stdout.trim()) {
+            printOutput(stdout);
             if (data.truncated_stdout) {
                 printOutput('[Output truncated due to size limit]', 'system-msg');
             }
@@ -1186,9 +1340,16 @@ async function sendTerminalCommand(command) {
                 printOutput('[Error output truncated due to size limit]', 'stderr-msg');
             }
         }
-        if (data && !data.stdout && !data.stderr) {
-            printOutput('[Command executed with no output]', 'system-msg');
+        if (!stdout.trim() && !data.stderr) {
+            // printOutput('[Command executed with no output]', 'system-msg'); // Removed for a cleaner terminal
         }
+        
+        // Update the visual prompt for the next input
+        const promptLabel = document.getElementById('prompt-label');
+        if (promptLabel) {
+            promptLabel.textContent = `root@ubuntu-24.04:${terminalPwd}$`;
+        }
+
         refreshFiles();
     } catch (e) {
         printOutput(`Error: ${e.message}`, 'stderr-msg');
@@ -1213,9 +1374,34 @@ function printOutput(text, className = '') {
 }
 
 // Notes Logic
-function saveNotes() {
-    localStorage.setItem('ubuntu_os_notes', noteArea.value);
-    showToast('Notes saved!');
+async function saveNotes() {
+    try {
+        const response = await fetch('/api/db/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: noteArea.value })
+        });
+        if (response.ok) {
+            showToast('Notes saved to DB!');
+        } else {
+            showToast('Failed to save notes.');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving notes.');
+    }
+}
+
+async function saveSettings() {
+    try {
+        await fetch('/api/db/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings: windows })
+        });
+    } catch (e) {
+        console.error("Failed to save settings to DB:", e);
+    }
 }
 
 function showToast(message = 'Saved successfully!') {
@@ -1267,14 +1453,55 @@ function hideContextMenu() {
 }
 
 // Launch system
-window.onload = () => {
-    const savedNotes = localStorage.getItem('ubuntu_os_notes');
-    if (savedNotes) {
-        noteArea.value = savedNotes;
+// Launch system
+window.onload = async () => {
+    // Load notes from DB
+    try {
+        const notesRes = await fetch('/api/db/notes');
+        if (notesRes.ok) {
+            const data = await notesRes.json();
+            if (data.content) {
+                noteArea.value = data.content;
+            }
+        }
+    } catch (e) {
+        console.error("Could not load notes:", e);
     }
     
-    // Hide store window initially
-    document.getElementById('win-store').style.display = 'none';
+    // Load settings from DB
+    try {
+        const setRes = await fetch('/api/db/settings');
+        if (setRes.ok) {
+            const data = await setRes.json();
+            if (data.settings && Object.keys(data.settings).length > 0) {
+                const dbWindows = data.settings;
+                // Apply saved window state
+                for (let winId in dbWindows) {
+                    if (windows[winId]) {
+                        Object.assign(windows[winId], dbWindows[winId]);
+                        const winEl = document.getElementById(`win-${winId}`);
+                        if (winEl) {
+                            winEl.style.left = windows[winId].x + 'px';
+                            winEl.style.top = windows[winId].y + 'px';
+                            winEl.style.width = windows[winId].w + 'px';
+                            winEl.style.height = windows[winId].h + 'px';
+                            
+                            if (windows[winId].active) {
+                                winEl.style.display = 'flex';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Could not load settings:", e);
+    }
+
+    // Hide store window initially if not set active by DB
+    if (!windows.store.active) {
+        document.getElementById('win-store').style.display = 'none';
+    }
 
     // Initialize draggable desktop shortcuts
     initDraggableShortcuts();
@@ -2605,6 +2832,7 @@ async function fetchDeployLogs(type) {
 
 // ================= Firefox Browser Controller =================
 let browserInitialized = false;
+let browserHistoryData = [];
 
 function initBrowserIframe() {
     if (browserInitialized) return;
@@ -2619,7 +2847,9 @@ function navigateBrowser(url) {
 
     // Sanitize URL
     let targetUrl = url.trim();
-    if (!targetUrl.match(/^https?:\/\//i)) {
+    if (targetUrl.startsWith('about:')) {
+        // Leave it as is for internal pages
+    } else if (!targetUrl.match(/^https?:\/\//i)) {
         if (targetUrl.includes('.') && !targetUrl.includes(' ')) {
             targetUrl = 'https://' + targetUrl;
         } else {
@@ -2627,8 +2857,42 @@ function navigateBrowser(url) {
             targetUrl = 'https://google.com/search?q=' + encodeURIComponent(targetUrl);
         }
     }
+    
+    if (!targetUrl.startsWith('about:')) {
+        browserHistoryData.unshift({ url: targetUrl, time: new Date().toLocaleTimeString() });
+        if (browserHistoryData.length > 50) browserHistoryData.pop();
+    }
 
     input.value = targetUrl;
+    
+    const tabTitle = document.getElementById('browser-tab-title');
+    if (tabTitle) {
+        let displayTitle = targetUrl.replace(/^https?:\/\//i, '');
+        if (displayTitle.endsWith('/')) displayTitle = displayTitle.slice(0, -1);
+        tabTitle.textContent = displayTitle;
+        tabTitle.title = targetUrl;
+    }
+
+    if (targetUrl === 'about:history') {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        let historyHtml = browserHistoryData.map(h => `<div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between;"><a href="javascript:void(0)" onclick="window.parent.navigateBrowser('${h.url}')" style="color: #00ddff; text-decoration: none;">${h.url}</a><span style="color: #aaa; font-size: 0.9em;">${h.time}</span></div>`).join('');
+        doc.write(`<!DOCTYPE html><html><head><title>History</title><style>body{background:#2b2a33;color:#fbfbfe;font-family:sans-serif;padding:40px;margin:0;} h1{margin-top:0;}</style></head><body><h1>Browsing History</h1><div style="background:#1c1b22;border-radius:8px;padding:16px;">${historyHtml || '<p>No history yet.</p>'}</div></body></html>`);
+        doc.close();
+        return;
+    } else if (targetUrl === 'about:downloads') {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><title>Downloads</title><style>body{background:#2b2a33;color:#fbfbfe;font-family:sans-serif;padding:40px;margin:0;} h1{margin-top:0;}</style></head><body><h1>Downloads</h1><div style="background:#1c1b22;border-radius:8px;padding:16px;"><p>No recent downloads.</p></div></body></html>`);
+        doc.close();
+        return;
+    } else if (targetUrl === 'about:settings') {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><title>Settings</title><style>body{background:#2b2a33;color:#fbfbfe;font-family:sans-serif;padding:40px;margin:0;} h1{margin-top:0;}</style></head><body><h1>Browser Settings</h1><div style="background:#1c1b22;border-radius:8px;padding:16px;"><p>Search Engine: Google</p><p>Theme: Dark</p><p>Privacy: Standard Tracking Protection</p></div></body></html>`);
+        doc.close();
+        return;
+    }
 
     if (targetUrl.startsWith('https://start.ubuntu.com') || targetUrl.includes('start.ubuntu.com') || targetUrl.includes('localhost:9500/api/get_profile')) {
         // Render a beautiful Ubuntu Start page directly inside the iframe to avoid iframe blocks
@@ -2761,6 +3025,7 @@ function navigateBrowser(url) {
         `);
         doc.close();
     } else {
+
         // Load external sites directly inside the project iframe via the path-based backend proxy
         // Path-based proxy preserves relative URL resolution for JS chunks, CSS, fonts, etc.
         if (targetUrl.startsWith('https://')) {
@@ -2799,6 +3064,34 @@ function browserRefresh() {
     if (!iframe || !input) return;
     navigateBrowser(input.value);
 }
+
+function toggleBrowserMenu(e) {
+    if (e) {
+        e.stopPropagation();
+    }
+    const menu = document.getElementById('browser-menu-dropdown');
+    if (menu) {
+        const isOpen = menu.style.transform === 'translateX(0%)';
+        if (isOpen) {
+            menu.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (menu.style.transform === 'translateX(100%)') {
+                    menu.style.visibility = 'hidden';
+                }
+            }, 300);
+        } else {
+            menu.style.visibility = 'visible';
+            menu.style.transform = 'translateX(0%)';
+        }
+    }
+}
+
+window.addEventListener('click', function(e) {
+    const menu = document.getElementById('browser-menu-dropdown');
+    if (menu && menu.style.transform === 'translateX(0%)' && !menu.contains(e.target) && !e.target.closest('button[title="Application Menu"]')) {
+        toggleBrowserMenu();
+    }
+});
 
 // ===================== Translator App =====================
 
