@@ -1,0 +1,278 @@
+/* AWS Console theme styling */
+:root {
+    --aws-bg-dark: #0f1424;
+    --aws-bg-sidebar: #0b0e1b;
+    --aws-color-primary: #ff9900; /* AWS Orange */
+    --aws-color-accent: #248bfb; /* AWS Light Blue */
+    --aws-border-subtle: rgba(255, 255, 255, 0.05);
+    --aws-text-muted: rgba(255, 255, 255, 0.45);
+}
+
+/* AWS Console App Layout */
+.aws-body {
+    padding: 0;
+    display: flex;
+    height: calc(100% - 40px);
+    overflow: hidden;
+    background: var(--aws-bg-dark);
+}
+
+/* AWS Sidebar Styles */
+.aws-sidebar {
+    width: 220px;
+    background: var(--aws-bg-sidebar);
+    border-right: 1px solid var(--aws-border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    padding: 10px 0;
+}
+
+.aws-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--aws-border-subtle);
+}
+
+.aws-sidebar-brand span {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #fff;
+}
+
+.aws-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    font-size: 0.82rem;
+    color: var(--aws-text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.aws-nav-item i {
+    font-size: 0.95rem;
+    width: 18px;
+    text-align: center;
+}
+
+.aws-nav-item:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.aws-nav-item.active {
+    color: #fff;
+    background: rgba(255, 153, 0, 0.08);
+    border-left-color: var(--aws-color-primary);
+}
+
+/* AWS Viewport Containers */
+.aws-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.aws-view {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.aws-view.active {
+    display: flex;
+}
+
+/* AWS Top Bar */
+.aws-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--aws-border-subtle);
+    flex-shrink: 0;
+}
+
+.aws-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Settings Form Styles */
+.aws-setup-container {
+    max-width: 480px;
+    width: 90%;
+    margin: auto;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--aws-border-subtle);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.aws-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.aws-form-group label {
+    font-size: 0.78rem;
+    color: var(--aws-text-muted);
+    font-weight: 500;
+}
+
+.aws-form-group input, .aws-form-group select {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #fff;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.aws-form-group input:focus, .aws-form-group select:focus {
+    border-color: var(--aws-color-primary);
+}
+
+/* AWS Topology Map Layout */
+.aws-topology-container {
+    flex: 1;
+    background: #090c15;
+    position: relative;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.aws-svg-canvas {
+    width: 100%;
+    height: 100%;
+    min-width: 780px;
+    min-height: 480px;
+    display: block;
+}
+
+/* Interactive Node Elements in SVG */
+.topo-node {
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.topo-node:hover {
+    filter: drop-shadow(0px 0px 8px rgba(255, 153, 0, 0.5));
+}
+
+.topo-zone-border {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+}
+
+.topo-subnet-public {
+    fill: rgba(245, 247, 250, 0.02);
+    stroke: rgba(16, 185, 129, 0.25);
+    stroke-width: 1;
+}
+
+.topo-subnet-private {
+    fill: rgba(245, 247, 250, 0.01);
+    stroke: rgba(36, 139, 251, 0.2);
+    stroke-width: 1;
+}
+
+.topo-connection-line {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 1.5;
+}
+
+.topo-traffic-dot {
+    fill: var(--aws-color-primary);
+}
+
+/* Pipeline logs in CloudWatch log viewer style */
+.aws-log-panel {
+    background: #020306;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 12px;
+    overflow-y: auto;
+    flex: 1;
+    color: #e2e8f0;
+}
+
+.aws-log-line {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.aws-log-time {
+    color: #475569;
+    margin-right: 12px;
+    font-weight: 500;
+}
+
+.aws-btn-orange {
+    background: linear-gradient(135deg, #ff9900, #e68a00) !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(255, 153, 0, 0.25);
+}
+
+.aws-btn-orange:hover {
+    background: linear-gradient(135deg, #ffa826, #f39200) !important;
+}
+
+.aws-btn-orange:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.aws-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.aws-badge-demo {
+    background: rgba(255, 153, 0, 0.15);
+    color: var(--aws-color-primary);
+    border: 1px solid rgba(255, 153, 0, 0.25);
+}
+
+.aws-badge-connected {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.aws-badge-disconnected {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}

@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Ubuntu 24.04 Web OS Desktop</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="index.css?v=2">
+    <link rel="stylesheet" href="index.css?v=6">
+    <link rel="stylesheet" href="aws/style.css">
+    <link rel="stylesheet" href="editor/style.css">
+    <link rel="stylesheet" href="liae/style.css">
     <!-- FontAwesome for Premium Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Math.js and Plotly.js for Calculator (Load BEFORE Monaco AMD loader) -->
@@ -80,6 +83,18 @@
             <div class="shortcut" ondblclick="openWindow('kubernetes')">
                 <div class="shortcut-icon"><i class="fa-solid fa-dharmachakra" style="color: #326ce5;"></i></div>
                 <div class="shortcut-name">Kubernatives</div>
+            </div>
+            <div class="shortcut" id="shortcut-aws" ondblclick="openWindow('aws')">
+                <div class="shortcut-icon"><i class="fa-brands fa-aws" style="color: #ff9900;"></i></div>
+                <div class="shortcut-name">AWS Console</div>
+            </div>
+            <div class="shortcut" id="shortcut-editor" ondblclick="openWindow('editor')">
+                <div class="shortcut-icon"><i class="fa-solid fa-code" style="color: #007acc;"></i></div>
+                <div class="shortcut-name">Code Editor</div>
+            </div>
+            <div class="shortcut" id="shortcut-liae" ondblclick="openWindow('liae')">
+                <div class="shortcut-icon"><i class="fa-solid fa-dna" style="color: #00e5ff;"></i></div>
+                <div class="shortcut-name">Autopsy Engine</div>
             </div>
         </div>
 
@@ -160,6 +175,18 @@
                 <div class="start-app-item" onclick="launchFromStart('kubernetes')">
                     <i class="fa-solid fa-dharmachakra" style="color: #326ce5;"></i>
                     <span>Kubernatives</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('aws')">
+                    <i class="fa-brands fa-aws" style="color: #ff9900;"></i>
+                    <span>AWS Console</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('editor')">
+                    <i class="fa-solid fa-code" style="color: #007acc;"></i>
+                    <span>Code Editor</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('liae')">
+                    <i class="fa-solid fa-dna" style="color: #00e5ff;"></i>
+                    <span>Autopsy Engine</span>
                 </div>
             </div>
         </div>
@@ -489,7 +516,9 @@
                                 <button class="fm-btn" onclick="setWallpaper('midnight')" style="height: 48px; background: linear-gradient(135deg, #09090b, #18181b, #27272a); border: none; color: white;">Midnight Black</button>
                                 <button class="fm-btn" onclick="setWallpaper('ubuntu')" style="height: 48px; background: linear-gradient(135deg, #5e2750, #77216f, #e95420); border: none; color: white;">Ubuntu Theme</button>
                                 <button class="fm-btn" onclick="setWallpaper('cyberpunk')" style="height: 48px; background: linear-gradient(135deg, #0f172a, #0369a1, #0d9488); border: none; color: white;">Ocean Deep</button>
+                                <button class="fm-btn" onclick="setWallpaper('kali')" style="height: 48px; background: linear-gradient(135deg, #000000, #0a0a14, #0d1b2a, #0f3460, #0a0a14); border: 1px solid rgba(30,144,255,0.4); color: #1e90ff; font-weight: 700; letter-spacing: 0.04em; grid-column: span 2; position:relative; overflow:hidden;"><i class="fa-solid fa-dragon" style="margin-right:6px;"></i>Kali Linux</button>
                             </div>
+
                         </div>
                         
                         <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1.2rem;">
@@ -1334,9 +1363,15 @@
             <div id="latency-val" style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500;">
                 Ping: -- ms
             </div>
+            <!-- IP Address display -->
+            <div id="ip-badge" title="Your Public IP — click to copy" onclick="copyIpToClipboard()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;font-family:var(--font-mono);font-weight:600;color:var(--text-secondary);cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:3px 10px;transition:all 0.2s;" onmouseenter="this.style.color='#00e5ff';this.style.borderColor='rgba(0,229,255,0.3)'" onmouseleave="this.style.color='var(--text-secondary)';this.style.borderColor='rgba(255,255,255,0.07)'">
+                <i class="fa-solid fa-globe" style="font-size:0.65rem;"></i>
+                <span id="ip-val">fetching...</span>
+            </div>
             <div class="clock" id="system-clock">10:59 AM</div>
         </div>
     </div>
+
 
     <!-- File Editor Modal overlay -->
     <div class="modal-overlay" id="editor-modal">
@@ -1736,6 +1771,497 @@
             <div class="resize-handle" onmousedown="startResize(event, 'kubernetes')"></div>
         </div>
 
+        <!-- 18. AWS Console Window -->
+        <div class="window" id="win-aws" style="top: 120px; left: 220px; width: 900px; height: 580px; z-index: 86; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'aws')" style="background: #1b223c; border-bottom: 1px solid rgba(255,153,0,0.15);">
+                <div class="window-title">
+                    <i class="fa-brands fa-aws" style="color: #ff9900; font-size: 1.15rem;"></i>
+                    <span style="font-weight: 600; letter-spacing: 0.3px;">AWS DevOps Console</span>
+                    <span id="aws-connection-badge" class="aws-badge aws-badge-demo" style="margin-left: 10px;">AWS Demo Mode</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('aws')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('aws')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('aws')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            
+            <div class="aws-body">
+                <!-- Sidebar -->
+                <div class="aws-sidebar">
+                    <div class="aws-sidebar-brand">
+                        <i class="fa-solid fa-cloud" style="color: var(--aws-color-primary);"></i>
+                        <span>AWS Console</span>
+                    </div>
+                    <div class="aws-nav-item active" id="aws-menu-overview" onclick="switchAwsTab('overview')">
+                        <i class="fa-solid fa-network-wired"></i> <span>Topology Map</span>
+                    </div>
+                    <div class="aws-nav-item" id="aws-menu-route53" onclick="switchAwsTab('route53')">
+                        <i class="fa-solid fa-globe"></i> <span>Route 53 DNS</span>
+                    </div>
+                    <div class="aws-nav-item" id="aws-menu-eks" onclick="switchAwsTab('eks')">
+                        <i class="fa-solid fa-dharmachakra"></i> <span>EKS Clusters</span>
+                    </div>
+                    <div class="aws-nav-item" id="aws-menu-rds" onclick="switchAwsTab('rds')">
+                        <i class="fa-solid fa-database"></i> <span>RDS Databases</span>
+                    </div>
+                    <div class="aws-nav-item" id="aws-menu-ecr" onclick="switchAwsTab('ecr')">
+                        <i class="fa-solid fa-box-archive"></i> <span>ECR Registry</span>
+                    </div>
+                    <div class="aws-nav-item" id="aws-menu-observability" onclick="switchAwsTab('observability')">
+                        <i class="fa-solid fa-chart-bar"></i> <span>Observability</span>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <div class="aws-nav-item" id="aws-menu-settings" onclick="switchAwsTab('settings')">
+                        <i class="fa-solid fa-sliders"></i> <span>Settings / Keys</span>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div class="aws-content">
+                    
+                    <!-- VIEW 1: OVERVIEW TOPOLOGY MAP -->
+                    <div id="aws-view-overview" class="aws-view active">
+                        <div class="aws-topbar">
+                            <div class="aws-topbar-left">
+                                <span style="font-size: 0.78rem; color: var(--aws-text-muted);">Region:</span>
+                                <span style="font-size: 0.8rem; font-weight: bold; color: #fff;">us-east-1 (N. Virginia)</span>
+                            </div>
+                            <button onclick="refreshAwsData()" class="fm-btn" style="background: rgba(255,153,0,0.12); border-color: rgba(255,153,0,0.25); color: var(--aws-color-primary); padding: 4px 10px; font-size: 0.72rem; flex: none;">
+                                <i class="fa-solid fa-arrow-rotate-right"></i> Sync Resources
+                            </button>
+                        </div>
+                        <div id="aws-topology-map" class="aws-topology-container">
+                            <!-- SVG generated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- VIEW 2: ROUTE 53 -->
+                    <div id="aws-view-route53" class="aws-view" style="padding: 20px; overflow-y: auto;">
+                        <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; font-size: 1rem;"><i class="fa-solid fa-globe" style="color: var(--aws-color-primary);"></i> Amazon Route 53 DNS Zones</h3>
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--aws-border-subtle); border-radius: 8px; overflow: hidden;">
+                            <table class="task-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--aws-border-subtle);">
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Domain Name</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Type</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">TTL</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Value / Target</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aws-dns-list">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 3: EKS -->
+                    <div id="aws-view-eks" class="aws-view" style="padding: 20px; overflow-y: auto;">
+                        <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; font-size: 1rem;"><i class="fa-solid fa-dharmachakra" style="color: var(--aws-color-primary);"></i> Amazon EKS Clusters</h3>
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--aws-border-subtle); border-radius: 8px; overflow: hidden;">
+                            <table class="task-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--aws-border-subtle);">
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Cluster Name</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Status</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Kubernetes Version</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">API Endpoint</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aws-eks-list">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 4: RDS -->
+                    <div id="aws-view-rds" class="aws-view" style="padding: 20px; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="color: #fff; margin: 0; font-size: 1rem;"><i class="fa-solid fa-database" style="color: var(--aws-color-primary);"></i> Amazon RDS Database Instances</h3>
+                            <button id="aws-btn-failover" onclick="triggerRdsFailover()" class="fm-btn aws-btn-orange" style="font-size: 0.75rem; padding: 6px 12px; flex: none;">
+                                <i class="fa-solid fa-shuffle"></i> Failover primary instance
+                            </button>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--aws-border-subtle); border-radius: 8px; overflow: hidden;">
+                            <table class="task-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--aws-border-subtle);">
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">DB Instance ID</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Engine</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Role</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Availability Zone</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aws-rds-list">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 5: ECR -->
+                    <div id="aws-view-ecr" class="aws-view" style="padding: 20px; overflow-y: auto;">
+                        <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; font-size: 1rem;"><i class="fa-solid fa-box-archive" style="color: var(--aws-color-primary);"></i> Amazon ECR Container Repositories</h3>
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--aws-border-subtle); border-radius: 8px; overflow: hidden;">
+                            <table class="task-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--aws-border-subtle);">
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Repository Name</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Image Tag</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Digest</th>
+                                        <th style="padding: 10px 16px; text-align: left; font-size: 0.75rem; color: var(--aws-text-muted); text-transform: uppercase;">Pushed At</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aws-ecr-list">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 6: OBSERVABILITY -->
+                    <div id="aws-view-observability" class="aws-view" style="padding: 20px; gap: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                            <h3 style="color: #fff; margin: 0; font-size: 1rem;"><i class="fa-solid fa-chart-bar" style="color: var(--aws-color-primary);"></i> Observability & DevOps Deployments</h3>
+                            <button id="aws-btn-pipeline" onclick="triggerDevOpsPipeline()" class="fm-btn aws-btn-orange" style="font-size: 0.75rem; padding: 6px 12px; flex: none;">
+                                <i class="fa-solid fa-play"></i> Trigger DevOps Pipeline
+                            </button>
+                        </div>
+                        <div id="aws-logs-console" class="aws-log-panel">
+                            <!-- Log outputs printed here -->
+                        </div>
+                    </div>
+
+                    <!-- VIEW 7: SETTINGS -->
+                    <div id="aws-view-settings" class="aws-view" style="padding: 20px; overflow-y: auto;">
+                        <div class="aws-setup-container">
+                            <h3 style="color: #fff; margin: 0; font-size: 1rem; border-bottom: 1px solid var(--aws-border-subtle); padding-bottom: 10px;">
+                                <i class="fa-solid fa-key" style="color: var(--aws-color-primary);"></i> Configure AWS API Keys
+                            </h3>
+                            <div id="aws-masked-key" style="font-size: 0.75rem; color: #10b981; font-weight: 500; min-height: 1.2em;">
+                                Not configured.
+                            </div>
+                            <div class="aws-form-group">
+                                <label>AWS Access Key ID</label>
+                                <input type="text" id="aws-input-key" placeholder="e.g. AKIAIOSFODNN7EXAMPLE">
+                            </div>
+                            <div class="aws-form-group">
+                                <label>AWS Secret Access Key</label>
+                                <input type="password" id="aws-input-secret" placeholder="e.g. wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY">
+                            </div>
+                            <div class="aws-form-group">
+                                <label>Default AWS Region</label>
+                                <select id="aws-input-region">
+                                    <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                                    <option value="us-east-2">us-east-2 (Ohio)</option>
+                                    <option value="us-west-1">us-west-1 (N. California)</option>
+                                    <option value="us-west-2">us-west-2 (Oregon)</option>
+                                    <option value="eu-west-1">eu-west-1 (Ireland)</option>
+                                    <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                                <button id="aws-btn-save-config" onclick="testAndSaveAwsConfig()" class="fm-btn aws-btn-orange" style="flex: 1; padding: 10px; border-radius: 8px;">
+                                    <i class="fa-solid fa-floppy-disk"></i> Test & Save Connection
+                                </button>
+                                <button onclick="loadMockAwsResources(); switchAwsTab('overview');" class="fm-btn" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; flex: 1;">
+                                    <i class="fa-solid fa-flask"></i> Launch Demo Mode
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loader Overlay -->
+            <div id="aws-loader" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,20,36,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; display: none;">
+                <div style="text-align: center; color: #fff;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2.2rem; color: var(--aws-color-primary); margin-bottom: 12px;"></i>
+                    <div style="font-size: 0.85rem; font-weight: 500; letter-spacing: 0.5px;">Querying AWS Cloud Resources...</div>
+                </div>
+            </div>
+            
+            <div class="resize-handle" onmousedown="startResize(event, 'aws')"></div>
+        </div>
+
+        <!-- 19. IDE Code Editor Window -->
+        <div class="window" id="win-editor" style="top: 100px; left: 140px; width: 860px; height: 560px; z-index: 85; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'editor')" style="background: #252526; border-bottom: 1px solid var(--edit-border);">
+                <div class="window-title">
+                    <i class="fa-solid fa-code" style="color: var(--edit-accent); font-size: 1.1rem;"></i>
+                    <span style="font-weight: 600; letter-spacing: 0.3px;">IDE Code Editor</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('editor')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('editor')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeEditorFile(); closeWindow('editor');" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
+            <div class="edit-body">
+                <!-- Sidebar File Explorer -->
+                <div class="edit-sidebar">
+                    <div class="edit-sidebar-title">
+                        <span>Explorer</span>
+                        <i class="fa-solid fa-folder-tree" style="color: var(--edit-accent);"></i>
+                    </div>
+                    <div class="edit-file-list" id="edit-files-list">
+                        <!-- File list loaded dynamically -->
+                    </div>
+                    
+                    <!-- Mode Selector (Nano, Vim, VS Code) -->
+                    <div class="edit-mode-selector">
+                        <div style="font-size: 0.65rem; color: var(--edit-text); opacity: 0.5; font-weight: bold; text-transform: uppercase;">Editor Mode</div>
+                        <button id="edit-btn-vscode" onclick="switchEditorMode('vscode')" class="edit-mode-btn active">
+                            <i class="fa-solid fa-code"></i> VS Code
+                        </button>
+                        <button id="edit-btn-vim" onclick="switchEditorMode('vim')" class="edit-mode-btn">
+                            <i class="fa-solid fa-terminal"></i> Vim Simulator
+                        </button>
+                        <button id="edit-btn-nano" onclick="switchEditorMode('nano')" class="edit-mode-btn">
+                            <i class="fa-solid fa-keyboard"></i> Nano Caret
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Editor Workspace Area -->
+                <div class="edit-workspace">
+                    <!-- Tab Bar -->
+                    <div class="edit-tab-bar">
+                        <div class="edit-tab" id="edit-open-tab" style="display: none;">
+                            <i class="fa-solid fa-file-code" style="color: var(--edit-accent);"></i>
+                            <span id="edit-open-tab-name">untitled.js</span>
+                            <span class="edit-tab-close" onclick="event.stopPropagation(); closeEditorFile()"><i class="fa-solid fa-xmark"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Monaco Editor container -->
+                    <div id="edit-monaco-container" class="edit-monaco-view">
+                        <!-- Monaco Editor instance renders here -->
+                    </div>
+
+                    <!-- Vim Input Command Line -->
+                    <div class="edit-vim-bar" id="edit-vim-container">
+                        <span class="edit-vim-prompt">:</span>
+                        <input type="text" id="edit-vim-cmd" onkeydown="handleVimCommandSubmit(event)" autocomplete="off" class="edit-vim-input" placeholder="Type vim commands e.g. w, q, wq, q!">
+                    </div>
+
+                    <!-- Nano shortcuts bar -->
+                    <div class="edit-nano-bar" id="edit-nano-container">
+                        <div class="edit-nano-grid">
+                            <div class="edit-nano-item" onclick="saveEditorFile()"><span class="edit-nano-key">^O</span><span class="edit-nano-label">WriteOut</span></div>
+                            <div class="edit-nano-item" onclick="closeEditorFile()"><span class="edit-nano-key">^X</span><span class="edit-nano-label">Exit</span></div>
+                            <div class="edit-nano-item" onclick="nanoCutTextLine()"><span class="edit-nano-key">^K</span><span class="edit-nano-label">Cut Text</span></div>
+                            <div class="edit-nano-item"><span class="edit-nano-key">^G</span><span class="edit-nano-label">Get Help</span></div>
+                            <div class="edit-nano-item"><span class="edit-nano-key">^W</span><span class="edit-nano-label">Where Is</span></div>
+                            <div class="edit-nano-item"><span class="edit-nano-key">^C</span><span class="edit-nano-label">Cur Pos</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Status Bar -->
+                    <div class="edit-statusbar">
+                        <div id="edit-status-file">No File Open</div>
+                        <div class="edit-statusbar-right">
+                            <div id="edit-status-mode">VS CODE MODE</div>
+                            <div id="edit-status-cursor">Ln 1, Col 1</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loader Overlay -->
+            <div id="edit-loader" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; display: none;">
+                <div style="text-align: center; color: #fff;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2.2rem; color: var(--edit-accent); margin-bottom: 12px;"></i>
+                    <div style="font-size: 0.85rem; font-weight: 500; letter-spacing: 0.5px;">Loading File Contents...</div>
+                </div>
+            </div>
+
+            <div class="resize-handle" onmousedown="startResize(event, 'editor')"></div>
+        </div>
+
+        <!-- LIAE — Live Infrastructure Autopsy Engine Window -->
+        <div class="window" id="win-liae" style="top: 60px; left: 60px; width: 980px; height: 580px; z-index: 100; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'liae')">
+                <div class="window-title">
+                    <i class="fa-solid fa-dna" style="color: #00e5ff;"></i>
+                    <span>LIAE — Live Infrastructure Autopsy Engine</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('liae')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('liae')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('liae')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="display:flex;flex-direction:column;padding:0;overflow:hidden;">
+
+                <!-- Header bar -->
+                <div class="liae-header">
+                    <span class="liae-header-title"><i class="fa-solid fa-dna"></i> Autopsy Engine</span>
+                    <div class="liae-live-pill" id="liae-live-pill-wrap">
+                        <div class="liae-live-dot" id="liae-live-dot"></div>
+                        <span id="liae-live-pill">● LIVE</span>
+                    </div>
+                    <span class="liae-snap-count" id="liae-snap-count">0 snaps</span>
+                    <div class="liae-header-spacer"></div>
+                    <button class="liae-btn" id="liae-btn-live" title="Resume live feed">
+                        <i class="fa-solid fa-circle-dot"></i> Live
+                    </button>
+                    <button class="liae-btn" id="liae-btn-pause" title="Pause at current moment">
+                        <i class="fa-solid fa-pause"></i> Pause
+                    </button>
+                    <button class="liae-btn" id="liae-btn-replay" title="Replay from beginning">
+                        <i class="fa-solid fa-circle-play"></i> Replay
+                    </button>
+                    <button class="liae-btn" id="liae-btn-refresh" title="Refresh timeline">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+
+                <!-- Timeline section -->
+                <div class="liae-timeline-section">
+                    <div class="liae-timeline-labels">
+                        <span id="liae-tl-left">--:--:--</span>
+                        <span style="color:var(--liae-muted);font-size:0.6rem;">← drag to scrub through time →</span>
+                        <span id="liae-tl-right">--:--:--</span>
+                    </div>
+                    <div class="liae-timeline-wrap" id="liae-timeline-wrap">
+                        <canvas id="liae-timeline-canvas"></canvas>
+                        <div class="liae-scrubber-line" id="liae-scrubber-line">
+                            <div class="liae-scrubber-tooltip" id="liae-scrubber-tooltip">--:--:--</div>
+                        </div>
+                    </div>
+                    <div class="liae-timeline-legend">
+                        <div class="liae-legend-item"><div class="liae-legend-dot" style="background:#ef4444;"></div> CPU spike</div>
+                        <div class="liae-legend-item"><div class="liae-legend-dot" style="background:rgba(139,92,246,0.6);"></div> Memory</div>
+                        <div class="liae-legend-item"><div class="liae-legend-dot" style="background:#ef4444;height:4px;"></div> Critical anomaly</div>
+                        <div class="liae-legend-item"><div class="liae-legend-dot" style="background:#f59e0b;height:3px;"></div> Warning</div>
+                        <div class="liae-legend-item"><div class="liae-legend-dot" style="background:#1e3a5f;"></div> Normal</div>
+                    </div>
+                </div>
+
+                <!-- Replay progress bar (hidden by default) -->
+                <div class="liae-replay-bar" id="liae-replay-bar">
+                    <i class="fa-solid fa-circle-play"></i>
+                    <span class="liae-replay-text">Replay mode — replaying recorded timeline</span>
+                    <span class="liae-replay-speed"><span id="liae-replay-frame">0</span> frames</span>
+                    <button class="liae-btn" style="padding:2px 8px;font-size:0.68rem;" onclick="document.getElementById('liae-btn-replay').click()">
+                        <i class="fa-solid fa-stop"></i> Stop
+                    </button>
+                </div>
+
+                <!-- View tab bar -->
+                <div class="liae-tab-bar">
+                    <div class="liae-tab active" data-tab="events"><i class="fa-solid fa-list"></i> Events</div>
+                    <div class="liae-tab" data-tab="processes"><i class="fa-solid fa-gears"></i> Processes</div>
+                    <div class="liae-tab" data-tab="diff"><i class="fa-solid fa-code-compare"></i> Snapshot Diff</div>
+                </div>
+
+                <!-- Main 3-panel layout -->
+                <div class="liae-content">
+
+                    <!-- Left: Layer selector -->
+                    <div class="liae-layers">
+                        <div class="liae-layers-title">Layers</div>
+                        <div class="liae-layer-item active" data-layer="all">
+                            <i class="fa-solid fa-list"></i> All
+                            <span class="liae-layer-badge" id="liae-badge-all"></span>
+                        </div>
+                        <div class="liae-layer-item" data-layer="cpu">
+                            <i class="fa-solid fa-microchip"></i> CPU
+                        </div>
+                        <div class="liae-layer-item" data-layer="memory">
+                            <i class="fa-solid fa-memory"></i> Memory
+                        </div>
+                        <div class="liae-layer-item" data-layer="processes">
+                            <i class="fa-solid fa-gears"></i> Processes
+                            <span class="liae-layer-badge" id="liae-badge-processes">0</span>
+                        </div>
+                        <div class="liae-layer-item" data-layer="network">
+                            <i class="fa-solid fa-network-wired"></i> Network
+                        </div>
+                        <div class="liae-layer-item" data-layer="containers">
+                            <i class="fa-solid fa-box"></i> Containers
+                            <span class="liae-layer-badge" id="liae-badge-containers">0</span>
+                        </div>
+                        <div class="liae-layer-item" data-layer="anomalies">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Anomalies
+                            <span class="liae-layer-badge" id="liae-badge-anomalies">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Center: Event feed / Process table / Diff -->
+                    <div class="liae-center">
+                        <div class="liae-ts-bar">
+                            <i class="fa-solid fa-clock" style="color:var(--liae-muted);font-size:0.7rem;"></i>
+                            <span class="liae-ts-value" id="liae-ts-value">--:--:--</span>
+                            <span class="liae-ts-mode" id="liae-ts-mode" style="color:#10b981;">● LIVE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-size:0.62rem;color:var(--liae-muted);">Drag timeline to rewind</span>
+                        </div>
+                        <div class="liae-event-panel" id="liae-event-panel">
+                            <div class="liae-empty">
+                                <i class="fa-solid fa-dna"></i>
+                                <div class="liae-empty-title">Starting collector…</div>
+                                <div class="liae-empty-sub">Collecting system snapshots.<br>First data appears in ~2 seconds.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Anomalies + Stats + Root cause -->
+                    <div class="liae-right">
+                        <!-- Stats mini grid -->
+                        <div class="liae-right-title">Live Metrics</div>
+                        <div class="liae-stats-grid">
+                            <div class="liae-stat-card" id="liae-stat-cpu">
+                                <div class="liae-stat-value">0%</div>
+                                <div class="liae-stat-label">Top CPU</div>
+                            </div>
+                            <div class="liae-stat-card" id="liae-stat-mem">
+                                <div class="liae-stat-value">0%</div>
+                                <div class="liae-stat-label">Memory</div>
+                            </div>
+                            <div class="liae-stat-card" id="liae-stat-net">
+                                <div class="liae-stat-value">0</div>
+                                <div class="liae-stat-label">Connections</div>
+                            </div>
+                            <div class="liae-stat-card" id="liae-stat-containers">
+                                <div class="liae-stat-value">0</div>
+                                <div class="liae-stat-label">Containers</div>
+                            </div>
+                        </div>
+
+                        <!-- Anomalies -->
+                        <div class="liae-right-title" style="margin-top:4px;">
+                            <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> Anomalies
+                        </div>
+                        <div class="liae-right-section" id="liae-anomalies-panel">
+                            <div style="padding:10px 8px;text-align:center;color:var(--liae-green);font-size:0.72rem;">
+                                <i class="fa-solid fa-shield-check" style="font-size:1.2rem;display:block;margin-bottom:6px;opacity:0.6;"></i>
+                                Waiting for data...
+                            </div>
+                        </div>
+
+                        <!-- Root cause hypothesis -->
+                        <div class="liae-right-bottom">
+                            <div class="liae-right-title">
+                                <i class="fa-solid fa-brain" style="color:var(--liae-cyan);"></i> Root Cause
+                            </div>
+                            <div id="liae-cause-panel">
+                                <div style="padding:8px;font-size:0.68rem;color:var(--liae-muted);">Analyzing...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /liae-content -->
+            </div><!-- /window-body -->
+            <div class="resize-handle" onmousedown="startResize(event, 'liae')"></div>
+        </div><!-- /win-liae -->
+
     <!-- Login Modal -->
     <div class="modal-overlay" id="login-modal" style="display: none; align-items: center; justify-content: center;">
         <div class="modal-card" style="max-width: 420px; width: 95%;">
@@ -1786,6 +2312,9 @@
         Saved successfully!
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
+    <script src="aws/app.js"></script>
+    <script src="editor/app.js"></script>
+    <script src="liae/app.js"></script>
 </body>
 </html>

@@ -35,7 +35,9 @@ const startMenuTrigger = document.getElementById('start-menu-trigger');
 const startMenu = document.getElementById('start-menu');
 const startSearch = document.getElementById('start-search');
 
-const BACKEND_URL = 'http://localhost:9500';
+const BACKEND_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '9500' 
+    ? 'http://localhost:9500' 
+    : '';
 
 let csrfToken = '';
 let isAuthed = false;
@@ -242,6 +244,16 @@ let currentPath = '/root';
 let currentlyEditingFile = '';
 let runningProcesses = []; // Cached processes for fast local filtering
 
+// ================= Mobile Responsive Helpers =================
+
+/**
+ * Returns true when the viewport width is ≤ 768px (mobile mode).
+ * Used to gate drag/resize and to auto-maximise windows on small screens.
+ */
+function isMobile() {
+    return window.innerWidth <= 768;
+}
+
 // ================= Window Manager State & Logic =================
 const windows = {
     calculator: { active: false, min: false, max: false, x: 550, y: 150, w: 450, h: 580, icon: 'fa-calculator', name: 'Calculator' },
@@ -261,7 +273,10 @@ const windows = {
     music: { active: false, min: false, max: false, x: 300, y: 200, w: 400, h: 500, icon: 'fa-music', name: 'Music Player' },
     tunnels: { active: false, min: false, max: false, x: 180, y: 180, w: 640, h: 400, icon: 'fa-globe', name: 'Active Tunnels' },
     redis: { active: false, min: false, max: false, x: 320, y: 190, w: 660, h: 460, icon: 'fa-database', name: 'Redis Server' },
-    kubernetes: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-dharmachakra', name: 'Kubernatives' }
+    kubernetes: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-dharmachakra', name: 'Kubernatives' },
+    aws: { active: false, min: false, max: false, x: 220, y: 120, w: 900, h: 580, icon: 'fa-aws', name: 'AWS DevOps Console' },
+    editor: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-code', name: 'IDE Code Editor' },
+    liae: { active: false, min: false, max: false, x: 60, y: 60, w: 980, h: 580, icon: 'fa-dna', name: 'Autopsy Engine' }
 };
 
 let highestZ = 100;
@@ -293,6 +308,14 @@ function openWindow(winId) {
     win.min = false;
     winEl.style.display = 'flex';
     winEl.classList.remove('minimized');
+
+    // On mobile: always open full-screen (maximized)
+    if (isMobile()) {
+        win.max = true;
+        winEl.classList.add('maximized');
+        // Close the start menu if open
+        startMenu.classList.remove('open');
+    }
     
     focusWindow(winId);
 
@@ -308,6 +331,8 @@ function openWindow(winId) {
         checkRedisStatus();
     } else if (winId === 'kubernetes') {
         initKubernetesApp();
+    } else if (winId === 'liae') {
+        if (typeof LIAE !== 'undefined') setTimeout(() => LIAE.init(), 60);
     }
 }
 
@@ -484,6 +509,8 @@ function closeWindow(winId) {
 // Drag functionality
 function startDrag(e, winId) {
     focusWindow(winId);
+    // No drag on mobile — windows are always full-screen
+    if (isMobile()) return;
     if (windows[winId].max) return;
     if (e.target.closest('.win-btn')) return;
 
@@ -513,6 +540,8 @@ function handleDragMove(e) {
 // Resize functionality
 function startResize(e, winId) {
     focusWindow(winId);
+    // No resize on mobile — windows are always full-screen
+    if (isMobile()) return;
     if (windows[winId].max) return;
     
     const winEl = document.getElementById(`win-${winId}`);
@@ -592,6 +621,49 @@ function updateClock() {
     systemClock.textContent = `${hours}:${minutes} ${ampm}`;
 }
 
+// ── Public IP display ─────────────────────────────────────────
+let _cachedIp = null;
+
+async function fetchPublicIp() {
+    const ipEl = document.getElementById('ip-val');
+    if (!ipEl) return;
+    try {
+        // Primary: ipify (fast, CORS-friendly)
+        const res = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+        const data = await res.json();
+        _cachedIp = data.ip;
+    } catch (_) {
+        try {
+            // Fallback: ipapi.co
+            const res2 = await fetch('https://ipapi.co/ip/', { cache: 'no-store' });
+            _cachedIp = (await res2.text()).trim();
+        } catch (__) {
+            _cachedIp = null;
+        }
+    }
+    if (ipEl) ipEl.textContent = _cachedIp || 'unavailable';
+}
+
+function copyIpToClipboard() {
+    if (!_cachedIp) return;
+    navigator.clipboard.writeText(_cachedIp).then(() => {
+        showToast(`📋 Copied: ${_cachedIp}`);
+        // Brief cyan flash on the badge
+        const badge = document.getElementById('ip-badge');
+        if (badge) {
+            badge.style.color = '#00e5ff';
+            badge.style.borderColor = 'rgba(0,229,255,0.5)';
+            badge.style.background = 'rgba(0,229,255,0.08)';
+            setTimeout(() => {
+                badge.style.color = '';
+                badge.style.borderColor = '';
+                badge.style.background = '';
+            }, 1200);
+        }
+    }).catch(() => showToast('Copy failed — try right-click'));
+}
+
+
 // Start Menu logic
 startMenuTrigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -636,6 +708,14 @@ function setWallpaper(theme) {
         body.style.background = 'linear-gradient(135deg, #5e2750, #77216f, #e95420)';
     } else if (theme === 'cyberpunk') {
         body.style.background = 'linear-gradient(135deg, #0f172a, #0369a1, #0d9488)';
+    } else if (theme === 'kali') {
+        // Kali Linux: iconic dark navy-black with electric blue dragon aura
+        body.style.background = [
+            'radial-gradient(ellipse at 20% 80%, rgba(30,144,255,0.18) 0%, transparent 55%)',
+            'radial-gradient(ellipse at 80% 20%, rgba(0,100,200,0.12) 0%, transparent 50%)',
+            'radial-gradient(ellipse at 50% 50%, rgba(15,52,96,0.5) 0%, transparent 70%)',
+            'linear-gradient(160deg, #000000 0%, #0a0a14 25%, #0d1b2a 50%, #000510 75%, #000000 100%)'
+        ].join(', ');
     }
     showToast('Wallpaper updated!');
 }
@@ -800,12 +880,32 @@ async function killProcess(pid, command) {
 async function initSystem() {
     updateClock();
     setInterval(updateClock, 1000);
+
+    // Fetch and refresh public IP every 10 minutes
+    fetchPublicIp();
+    setInterval(fetchPublicIp, 10 * 60 * 1000);
+
     setupWindowClickFocus();
     updateTaskbarBadges();
+
+    // Mobile-specific: single-tap shortcuts + ESC/back to close
+    if (isMobile()) {
+        setupMobileShortcuts();
+    }
     
     document.getElementById('win-settings').style.display = 'none';
     document.getElementById('win-tasks').style.display = 'none';
     document.getElementById('win-cleaner').style.display = 'none';
+
+    // On mobile, the terminal starts hidden (user opens via icon grid)
+    if (isMobile()) {
+        const termWin = windows['terminal'];
+        if (termWin) {
+            termWin.active = false;
+            const termEl = document.getElementById('win-terminal');
+            if (termEl) termEl.style.display = 'none';
+        }
+    }
     
     try {
         const connected = await testConnection();
@@ -825,6 +925,74 @@ async function initSystem() {
     } catch (e) {
         updateConnectionStatus(false);
     }
+}
+
+/**
+ * Sets up mobile-specific interactions:
+ *  - Convert shortcut double-clicks → single taps
+ *  - ESC / Android back button closes the topmost active window
+ *  - Handle viewport resize (e.g., screen rotation)
+ */
+function setupMobileShortcuts() {
+    // Convert ondblclick shortcuts to single-tap (touchstart) on mobile
+    document.querySelectorAll('.shortcut[ondblclick]').forEach(el => {
+        const handler = el.getAttribute('ondblclick');
+        // Remove double-click in favour of touch
+        el.removeAttribute('ondblclick');
+        el.addEventListener('click', () => {
+            // eval the existing handler string (e.g. openWindow('terminal'))
+            try { eval(handler); } catch (_) {}
+        }, { passive: true });
+    });
+
+    // ESC key OR Android back-button (popstate) closes the front-most window
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeFrontWindow();
+    });
+
+    // Android back gesture: push a history entry so back can be intercepted
+    history.pushState({ webos: true }, '');
+    window.addEventListener('popstate', () => {
+        const closed = closeFrontWindow();
+        // Re-push so the next back press is also handled
+        if (closed) history.pushState({ webos: true }, '');
+    });
+
+    // On orientation/resize: re-evaluate maximised state for all open windows
+    window.addEventListener('resize', () => {
+        if (isMobile()) {
+            Object.keys(windows).forEach(winId => {
+                const win = windows[winId];
+                if (win.active && !win.min) {
+                    win.max = true;
+                    const el = document.getElementById(`win-${winId}`);
+                    if (el) el.classList.add('maximized');
+                }
+            });
+        }
+    });
+}
+
+/**
+ * Closes the highest-z-index (front-most) active window on mobile.
+ * Returns true if a window was closed, false if none was open.
+ */
+function closeFrontWindow() {
+    let topWinId = null;
+    let topZ = -1;
+    Object.keys(windows).forEach(winId => {
+        const win = windows[winId];
+        if (win.active && !win.min) {
+            const el = document.getElementById(`win-${winId}`);
+            const z = parseInt(el?.style.zIndex || '0', 10);
+            if (z > topZ) { topZ = z; topWinId = winId; }
+        }
+    });
+    if (topWinId) {
+        closeWindow(topWinId);
+        return true;
+    }
+    return false;
 }
 
 async function testConnection() {

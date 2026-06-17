@@ -1,0 +1,239 @@
+/* Code Editor Theme Styles */
+:root {
+    --edit-bg: #1e1e1e;
+    --edit-sidebar: #252526;
+    --edit-active-item: #37373d;
+    --edit-border: rgba(255, 255, 255, 0.05);
+    --edit-accent: #007acc; /* VS Code Blue */
+    --edit-text: #cccccc;
+}
+
+.edit-body {
+    padding: 0;
+    display: flex;
+    height: calc(100% - 40px);
+    overflow: hidden;
+    background: var(--edit-bg);
+    color: var(--edit-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Sidebar File Tree */
+.edit-sidebar {
+    width: 200px;
+    background: var(--edit-sidebar);
+    border-right: 1px solid var(--edit-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.edit-sidebar-title {
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--edit-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.edit-file-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.edit-file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.edit-file-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.edit-file-item.active {
+    background: var(--edit-active-item);
+    color: #fff;
+    border-left: 2px solid var(--edit-accent);
+}
+
+/* Mode bar in sidebar */
+.edit-mode-selector {
+    padding: 10px 16px;
+    border-top: 1px solid var(--edit-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(0,0,0,0.1);
+}
+
+.edit-mode-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.edit-mode-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.edit-mode-btn.active {
+    background: var(--edit-accent);
+    border-color: var(--edit-accent);
+}
+
+/* Main Workspace */
+.edit-workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.edit-tab-bar {
+    height: 35px;
+    background: #2d2d2d;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--edit-border);
+    flex-shrink: 0;
+}
+
+.edit-tab {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    font-size: 0.78rem;
+    background: var(--edit-bg);
+    border-right: 1px solid var(--edit-border);
+    cursor: pointer;
+    position: relative;
+}
+
+.edit-tab-close {
+    font-size: 0.7rem;
+    color: var(--aws-text-muted);
+    cursor: pointer;
+}
+
+.edit-tab-close:hover {
+    color: #ef4444;
+}
+
+/* Editor Container */
+.edit-monaco-view {
+    flex: 1;
+    width: 100%;
+    position: relative;
+    background: var(--edit-bg);
+}
+
+/* Status Bar */
+.edit-statusbar {
+    height: 22px;
+    background: var(--edit-accent);
+    color: #fff;
+    font-size: 0.72rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    flex-shrink: 0;
+}
+
+.edit-statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Vim Command Input Line */
+.edit-vim-bar {
+    height: 24px;
+    background: #000;
+    display: none; /* Only visible in Vim Mode */
+    align-items: center;
+    padding: 0 12px;
+    border-top: 1px solid var(--edit-border);
+    flex-shrink: 0;
+}
+
+.edit-vim-prompt {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: #10b981;
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.edit-vim-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0;
+}
+
+/* Nano Shortcuts Row */
+.edit-nano-bar {
+    background: #000;
+    display: none; /* Only visible in Nano Mode */
+    flex-direction: column;
+    padding: 6px 12px;
+    border-top: 1px solid var(--edit-border);
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.edit-nano-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px 12px;
+}
+
+.edit-nano-item {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.edit-nano-key {
+    background: #333;
+    color: #fff;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.edit-nano-label {
+    color: #aaa;
+}

@@ -1,0 +1,15 @@
+Verifying AWS DevOps Console
+Goal
+1. Open http://localhost:9500
+2. Log in with admin/admin if prompted.
+3. Locate the 'AWS Console' desktop shortcut icon and double-click it to open the AWS Console window.
+4. The AWS Console window should display the Settings/Keys setup panel by default (since credentials aren't saved).
+5. Click the 'Launch Demo Mode' button on the right side of the settings panel to activate the Demo Mode.
+6. Verify that the Topology Map tab renders a beautiful network diagram of the VPC (three Availability Zones us-east-1a, us-east-1b, us-east-1c, NAT Gateways, EC2 Worker Nodes, and RDS Databases).
+7. Hover or click on a node in the diagram to confirm details display.
+8. Click on 'RDS Databases' tab in the left sidebar. Verify the list of DB instances is shown.
+9. Click the 'Failover primary instance' button. Verify that the failover operation completes and swaps roles.
+10. Click on 'ECR Registry' tab in the sidebar. Verify the repository and container images display correctly.
+11. Click on 'Observability' tab in the sidebar. Click the 'Trigger DevOps Pipeline' button. Wait for the logs to scroll and display pipeline steps.
+12. Take a screenshot of the completed DevOps pipeline log view.
+13. Stop and report the status.

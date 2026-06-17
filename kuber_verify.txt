@@ -1,0 +1,12 @@
+Kubernatives App Verification Checklist
+ 1. Navigate to http://localhost:9500.
+ 2. Log in with username 'admin' and password 'admin'.
+ 3. Double-click the 'Kubernatives' shortcut on the desktop to launch the app.
+ 4. Verify Cluster Overview showing Node status and Version details. (Take screenshot)
+ 5. Click on 'Pods' tab in the left sidebar. (Take screenshot)
+ 6. Delete one nginx pod, confirm, verify termination/disappearance. (Take screenshot)
+ 7. Click 'Deployments' tab, scale 'nginx-deployment' from 2 to 4. (Take screenshot)
+ 8. Click 'Pods' tab, verify new pods creation. (Take screenshot)
+ 9. Click 'YAML Manifest Apply' (file icon), 'Load Sample Pod', 'Apply Manifest'. (Take screenshot)
+ 10. Click 'kubectl CLI' (terminal icon), run 'kubectl get pods'. (Take screenshot)
+ 11. Maximise Kubernetes window, verify input bar visible. (Take screenshot)

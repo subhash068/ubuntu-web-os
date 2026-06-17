@@ -504,13 +504,14 @@ def execute_allowed(op: str, args: dict):
 
 class UbuntuOSHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
-        origin = ALLOWED_ORIGIN.strip()
+        # Prefer static ALLOWED_ORIGIN if set; otherwise echo back the request Origin.
+        static_origin = ALLOWED_ORIGIN.strip()
+        request_origin = self.headers.get('Origin', '') if hasattr(self, 'headers') and self.headers else ''
+        origin = static_origin if static_origin else request_origin
         if origin:
             self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Credentials', 'true')
             self.send_header('Vary', 'Origin')
-        else:
-            # If we don't know origin, keep no wildcard with cookies.
-            pass
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token')
         super().end_headers()
@@ -715,13 +716,24 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
             # Cookies are split for simple signing.
             session_sig = _sign_session_id(session_id)
 
+            # Detect if request came over HTTPS (e.g. via ngrok) so we can set Secure flag
+            forwarded_proto = self.headers.get('X-Forwarded-Proto', '')
+            is_secure = forwarded_proto.lower() == 'https'
+            request_origin = self.headers.get('Origin', '')
+            is_cross_origin = bool(request_origin) and 'localhost' not in request_origin
+            if is_cross_origin or is_secure:
+                # Cross-origin (ngrok, etc.): SameSite=None requires Secure
+                cookie_attrs = f'HttpOnly; SameSite=None; Secure; Path=/; Max-Age={SESSION_TTL_SEC}'
+            else:
+                cookie_attrs = f'HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SEC}'
+            body = json.dumps({'csrf': csrf}).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Set-Cookie', f'session={session_id}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SEC}')
-            self.send_header('Set-Cookie', f'session_sig={session_sig}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL_SEC}')
-            self.send_header('Content-Length', str(len(json.dumps({'csrf': csrf}).encode('utf-8'))))
+            self.send_header('Set-Cookie', f'session={session_id}; {cookie_attrs}')
+            self.send_header('Set-Cookie', f'session_sig={session_sig}; {cookie_attrs}')
+            self.send_header('Content-Length', str(len(body)))
             self.end_headers()
-            self.wfile.write(json.dumps({'csrf': csrf}).encode('utf-8'))
+            self.wfile.write(body)
             return
 
         # Get Profile
@@ -844,6 +856,34 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
                 return
             if not isinstance(args, dict):
                 _json_response(self, 400, {'error': 'Invalid args'})
+                return
+            
+            ### aws api
+            if op.startswith('aws_'):
+                try:
+                    from aws.handler import handle_aws_api
+                    response = handle_aws_api(op, args)
+                    _json_response(self, 200, response)
+                except Exception as e:
+                    _json_response(self, 500, {'error': f'AWS Module Error: {str(e)}'})
+                return
+
+            ### liae api — Live Infrastructure Autopsy Engine
+            if op.startswith('liae_'):
+                try:
+                    from liae.handler import handle_liae_api
+                    response = handle_liae_api(op, args)
+                    _json_response(self, 200, response)
+                except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                    # Client closed the connection before we could reply — nothing to do
+                    pass
+                except Exception as e:
+                    import traceback; traceback.print_exc()
+                    try:
+                        _json_response(self, 500, {'error': f'LIAE Module Error: {str(e)}'})
+                    except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                        pass  # Client already gone
+                return
 
             try:
                 response = execute_allowed(op, args)
