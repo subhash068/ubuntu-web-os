@@ -6,15 +6,21 @@
     <title>Ubuntu 24.04 Web OS Desktop</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="index.css?v=6">
+    <link rel="stylesheet" href="index.css?v=7">
     <link rel="stylesheet" href="aws/style.css">
     <link rel="stylesheet" href="editor/style.css">
     <link rel="stylesheet" href="liae/style.css">
+    <link rel="stylesheet" href="spy/style.css">
+    <link rel="stylesheet" href="wifi/style.css">
     <!-- FontAwesome for Premium Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Math.js and Plotly.js for Calculator (Load BEFORE Monaco AMD loader) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <!-- xterm.js (Load BEFORE Monaco AMD loader) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 </head>
@@ -96,6 +102,26 @@
                 <div class="shortcut-icon"><i class="fa-solid fa-dna" style="color: #00e5ff;"></i></div>
                 <div class="shortcut-name">Autopsy Engine</div>
             </div>
+            <div class="shortcut" id="shortcut-spy" ondblclick="openWindow('spy')">
+                <div class="shortcut-icon"><i class="fa-solid fa-user-secret" style="color: #00ff41;"></i></div>
+                <div class="shortcut-name">Spy Network</div>
+            </div>
+            <div class="shortcut" id="shortcut-wifi" ondblclick="openWindow('wifi')">
+                <div class="shortcut-icon"><i class="fa-solid fa-wifi" style="color: #3b82f6;"></i></div>
+                <div class="shortcut-name">Wi-Fi Manager</div>
+            </div>
+            <div class="shortcut" id="shortcut-qa" ondblclick="openWindow('qa')">
+                <div class="shortcut-icon"><i class="fa-solid fa-vial" style="color: #10b981;"></i></div>
+                <div class="shortcut-name">QA Engine</div>
+            </div>
+            <div class="shortcut" id="shortcut-wazuh" ondblclick="openWindow('wazuh')">
+                <div class="shortcut-icon"><i class="fa-solid fa-shield-halved" style="color: #3b82f6;"></i></div>
+                <div class="shortcut-name">Wazuh SIEM</div>
+            </div>
+            <div class="shortcut" id="shortcut-hosting" ondblclick="openWindow('hosting')">
+                <div class="shortcut-icon"><i class="fa-solid fa-cloud-bolt" style="color: #60a5fa;"></i></div>
+                <div class="shortcut-name">Agenthoryx Cloud</div>
+            </div>
         </div>
 
         <!-- Start Menu Popup -->
@@ -144,6 +170,14 @@
                     <i class="fa-solid fa-broom"></i>
                     <span>System Cleaner</span>
                 </div>
+                <div class="start-app-item" onclick="launchFromStart('spy')">
+                    <i class="fa-solid fa-user-secret" style="color: #00ff41;"></i>
+                    <span>Spy Network</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('wifi')">
+                    <i class="fa-solid fa-wifi" style="color: #3b82f6;"></i>
+                    <span>Wi-Fi Manager</span>
+                </div>
                 <div class="start-app-item" onclick="launchFromStart('deploy')">
                     <i class="fa-solid fa-server"></i>
                     <span>Deploy Center</span>
@@ -188,6 +222,18 @@
                     <i class="fa-solid fa-dna" style="color: #00e5ff;"></i>
                     <span>Autopsy Engine</span>
                 </div>
+                <div class="start-app-item" onclick="launchFromStart('qa')">
+                    <i class="fa-solid fa-vial" style="color: #10b981;"></i>
+                    <span>QA Engine</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('wazuh')">
+                    <i class="fa-solid fa-shield-halved" style="color: #3b82f6;"></i>
+                    <span>Wazuh SIEM</span>
+                </div>
+                <div class="start-app-item" onclick="launchFromStart('hosting')">
+                    <i class="fa-solid fa-cloud-bolt" style="color: #60a5fa;"></i>
+                    <span>Agenthoryx Cloud</span>
+                </div>
             </div>
         </div>
 
@@ -205,16 +251,8 @@
                 </div>
             </div>
             <div class="window-body">
-                <div class="terminal">
-                    <div class="terminal-body" id="terminal-body">
-                        <div>Initializing connection to Ubuntu 24.04 session...</div>
-                    </div>
-                    <div class="terminal-header" style="border-top: 1px solid rgba(255, 255, 255, 0.05); border-bottom: none; background: transparent;">
-                        <div class="terminal-input-line" style="width: 100%;">
-                            <span class="prompt" id="prompt-label">root@ubuntu:~$</span>
-                            <input type="text" class="term-input" id="term-input" placeholder="Type a command..." autocomplete="off">
-                        </div>
-                    </div>
+                <div class="terminal" style="padding: 10px; width: 100%; height: 100%; box-sizing: border-box; background: #1e1e1e; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column;">
+                    <div id="xterm-container" style="flex: 1; width: 100%; min-height: 0;"></div>
                 </div>
             </div>
             <div class="resize-handle" onmousedown="startResize(event, 'terminal')"></div>
@@ -1340,6 +1378,328 @@
             <div class="resize-handle" onmousedown="startResize(event, 'music')"></div>
         </div>
 
+        <!-- Spy Network Window -->
+        <div class="window" id="win-spy" style="top: 150px; left: 150px; width: 800px; height: 500px; z-index: 95; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'spy')">
+                <div class="window-title">
+                    <i class="fa-solid fa-user-secret" style="color: #00ff41;"></i>
+                    <span>Spy Network <span style="font-size:0.65rem; color:var(--text-secondary); margin-left:8px;">Identity Rotator</span></span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('spy')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('spy')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('spy')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body spy-theme">
+                <div class="spy-header">
+                    <div class="spy-logo">SPY NETWORK</div>
+                    <div class="spy-header-spacer"></div>
+                    <div class="spy-status-pill">
+                        <div class="spy-pulse"></div>
+                        ACTIVE
+                    </div>
+                </div>
+                
+                <div class="spy-tabs">
+                    <div class="spy-tab active" data-tab="identity"><i class="fa-solid fa-id-card"></i> Identity</div>
+                    <div class="spy-tab" data-tab="network"><i class="fa-solid fa-network-wired"></i> Interfaces</div>
+                </div>
+                
+                <div class="spy-body">
+                    <!-- Identity Pane -->
+                    <div class="spy-pane active" id="spy-pane-identity" style="flex-direction:row; padding:0; height:100%;">
+                        <div class="spy-identity">
+                            <div class="spy-section-title">Active Origin</div>
+                            <div class="spy-ip-display">
+                                <div class="spy-ip-label">Public IPv4</div>
+                                <div class="spy-ip-value" id="spy-ip-value">...</div>
+                                <div class="spy-ip-sub" id="spy-ip-sub">...</div>
+                                <div class="spy-ip-source" id="spy-ip-source">...</div>
+                                <div class="spy-rotation-bar"><div class="spy-rotation-fill" id="spy-progress-fill"></div></div>
+                            </div>
+                            <div class="spy-rotation-controls">
+                                <button class="spy-btn active" id="spy-btn-rotate"><i class="fa-solid fa-circle-stop"></i> Stop</button>
+                                <button class="spy-btn" id="spy-btn-next" title="Force rotate now"><i class="fa-solid fa-forward-step"></i></button>
+                                <select class="spy-btn" id="spy-interval-sel" style="margin-left:auto; appearance:none; padding-right:15px; width:45px; text-align:center;">
+                                    <option value="5">5s</option>
+                                    <option value="10">10s</option>
+                                    <option value="15">15s</option>
+                                    <option value="30">30s</option>
+                                </select>
+                            </div>
+                            <div class="spy-section-title">Nodes (<span id="spy-stat-src">0</span>) <button class="spy-btn" id="spy-btn-refresh" style="float:right; padding:1px 4px; border:none; background:transparent;"><i class="fa-solid fa-arrows-rotate"></i></button></div>
+                            <div class="spy-sources" id="spy-source-list"></div>
+                            <div class="spy-rotation-counter" id="spy-rotation-counter"></div>
+                        </div>
+                        
+                        <div class="spy-center">
+                            <div class="spy-geo-grid">
+                                <div class="spy-geo-card"><div class="spy-geo-label">Country</div><div class="spy-geo-value highlight" id="spy-geo-country">—</div></div>
+                                <div class="spy-geo-card"><div class="spy-geo-label">City</div><div class="spy-geo-value" id="spy-geo-city">—</div></div>
+                                <div class="spy-geo-card"><div class="spy-geo-label">Region</div><div class="spy-geo-value" id="spy-geo-region">—</div></div>
+                                <div class="spy-geo-card"><div class="spy-geo-label">ISP</div><div class="spy-geo-value" id="spy-geo-isp">—</div></div>
+                                <div class="spy-geo-card"><div class="spy-geo-label">Timezone</div><div class="spy-geo-value" id="spy-geo-timezone">—</div></div>
+                                <div class="spy-geo-card"><div class="spy-geo-label">Coordinates</div><div class="spy-geo-value" id="spy-geo-coords">—</div></div>
+                            </div>
+                            <div class="spy-section-title">Event Log</div>
+                            <div class="spy-console" id="spy-console"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Network Pane -->
+                    <div class="spy-pane" id="spy-pane-network" style="padding:10px;">
+                        <div id="spy-net-pane">
+                            <div class="spy-empty">
+                                <div class="spy-spinner"></div>
+                                <div>Scanning interfaces...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="spy-stats">
+                    <div class="spy-stat-box"><div class="spy-stat-val" id="spy-stat-ok">0</div><div class="spy-stat-lbl">Nodes Online</div></div>
+                    <div class="spy-stat-box"><div class="spy-stat-val" id="spy-stat-err" style="color:var(--spy-red);">0</div><div class="spy-stat-lbl">Failures</div></div>
+                </div>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'spy')"></div>
+        </div>
+
+        <!-- Wi-Fi Manager Window -->
+        <div class="window" id="win-wifi" style="top: 200px; left: 300px; width: 450px; height: 550px; z-index: 96; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'wifi')">
+                <div class="window-title">
+                    <i class="fa-solid fa-wifi" style="color: #3b82f6;"></i>
+                    <span>Wi-Fi Manager</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('wifi')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('wifi')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body wifi-theme">
+                <div class="wifi-top-bar">
+                    <div class="wifi-switch-wrap">
+                        <span class="wifi-status-lbl">Wi-Fi</span>
+                        <label class="wifi-switch">
+                            <input type="checkbox" id="wifi-toggle-chk" checked>
+                            <span class="wifi-slider"></span>
+                        </label>
+                    </div>
+                    <button class="fm-btn wifi-refresh-btn" id="wifi-scan-btn"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+                <div class="wifi-network-list" id="wifi-networks">
+                    <!-- Loaded dynamically -->
+                </div>
+                
+                <div class="wifi-pwd-overlay" id="wifi-pwd-overlay">
+                    <div class="wifi-pwd-modal">
+                        <h4 id="wifi-pwd-title">Connect to Network</h4>
+                        <form onsubmit="return false" style="margin:0; padding:0;">
+                            <input type="text" autocomplete="username" style="display:none;" aria-hidden="true">
+                            <div style="position: relative; margin: 15px 0;">
+                                <input type="password" id="wifi-pwd-input" placeholder="Enter security key..." class="fm-input" style="width:100%; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 10px 35px 10px 12px; outline: none; transition: all 0.2s;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 2px rgba(59,130,246,0.3)'" onblur="this.style.borderColor='#30363d'; this.style.boxShadow='none'" autocomplete="new-password">
+                                <i class="fa-solid fa-eye" id="wifi-pwd-toggle" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #8b949e; cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#8b949e'" onclick="const input = document.getElementById('wifi-pwd-input'); if(input.type === 'password') { input.type = 'text'; this.classList.remove('fa-eye'); this.classList.add('fa-eye-slash'); } else { input.type = 'password'; this.classList.remove('fa-eye-slash'); this.classList.add('fa-eye'); }"></i>
+                            </div>
+                        </form>
+                        <div class="wifi-pwd-actions">
+                            <button class="fm-btn" id="wifi-pwd-cancel" style="background:var(--bg-secondary); border-color:var(--border-light)">Cancel</button>
+                            <button class="fm-btn" id="wifi-pwd-connect" style="background:var(--accent-blue); color:white; border-color:transparent;">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>        <!-- Control Center Styles, HTML and Logic -->
+        <style>
+            #control-center input[type=range]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: #ffffff;
+                cursor: pointer;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        </style>
+        <div id="control-center" style="display: none; position: absolute; bottom: 50px; right: 10px; width: 340px; background: rgba(28, 27, 34, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); z-index: 9999; flex-direction: column; gap: 16px; color: #fbfbfe; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            
+            <!-- Quick Actions Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                
+                <!-- Wi-Fi -->
+                <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; display: flex; align-items: center; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div id="cc-wifi-toggle" onclick="toggleCcWifi()" style="background: #3b82f6; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                        <i class="fa-solid fa-wifi" style="color: white; font-size: 0.9rem;"></i>
+                    </div>
+                    <div style="flex: 1; padding: 0 8px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;">
+                        <span style="font-size: 0.8rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Wi-Fi</span>
+                        <span id="cc-wifi-status" style="font-size: 0.65rem; color: rgba(255,255,255,0.6); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">On</span>
+                    </div>
+                    <div onclick="openWindow('wifi'); document.getElementById('control-center').style.display='none'" style="width: 24px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-left: 1px solid rgba(255,255,255,0.1); opacity: 0.7; transition: 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Wi-Fi Settings">
+                        <i class="fa-solid fa-chevron-right" style="font-size: 0.75rem;"></i>
+                    </div>
+                </div>
+
+                <!-- Bluetooth -->
+                <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; display: flex; align-items: center; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div id="cc-bt-toggle" onclick="toggleCcBt()" style="background: rgba(255, 255, 255, 0.1); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                        <i class="fa-brands fa-bluetooth-b" style="color: white; font-size: 0.9rem;"></i>
+                    </div>
+                    <div style="flex: 1; padding: 0 8px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;">
+                        <span style="font-size: 0.8rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Bluetooth</span>
+                        <span id="cc-bt-status" style="font-size: 0.65rem; color: rgba(255,255,255,0.6); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Off</span>
+                    </div>
+                </div>
+
+                <!-- Aeroplane Mode -->
+                <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; display: flex; align-items: center; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div id="cc-ap-toggle" onclick="toggleCcAp()" style="background: rgba(255, 255, 255, 0.1); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                        <i class="fa-solid fa-plane" style="color: white; font-size: 0.9rem;"></i>
+                    </div>
+                    <div style="flex: 1; padding: 0 8px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;">
+                        <span style="font-size: 0.8rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Aeroplane</span>
+                        <span id="cc-ap-status" style="font-size: 0.65rem; color: rgba(255,255,255,0.6); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Off</span>
+                    </div>
+                </div>
+
+                <!-- DND -->
+                <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; display: flex; align-items: center; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div id="cc-dnd-toggle" onclick="toggleCcDnd()" style="background: rgba(255, 255, 255, 0.1); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                        <i class="fa-solid fa-moon" style="color: white; font-size: 0.9rem;"></i>
+                    </div>
+                    <div style="flex: 1; padding: 0 8px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;">
+                        <span style="font-size: 0.8rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">DND</span>
+                        <span id="cc-dnd-status" style="font-size: 0.65rem; color: rgba(255,255,255,0.6); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Off</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sliders -->
+            <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <!-- Brightness -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fa-solid fa-sun" style="font-size: 0.8rem; color: rgba(255,255,255,0.6); width: 16px; text-align: center;"></i>
+                    <input type="range" id="cc-bright-slider" min="0" max="100" value="80" oninput="updateCcBright(this.value)" style="flex: 1; height: 6px; -webkit-appearance: none; background: rgba(255,255,255,0.2); border-radius: 3px; outline: none;">
+                </div>
+                <!-- Volume -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fa-solid fa-volume-high" id="cc-vol-icon" style="font-size: 0.8rem; color: rgba(255,255,255,0.6); width: 16px; text-align: center;"></i>
+                    <input type="range" id="cc-vol-slider" min="0" max="100" value="60" oninput="updateCcVol(this.value)" style="flex: 1; height: 6px; -webkit-appearance: none; background: rgba(255,255,255,0.2); border-radius: 3px; outline: none;">
+                </div>
+            </div>
+            
+        </div>
+        <script>
+            let ccState = {
+                wifi: true,
+                bt: false,
+                ap: false,
+                dnd: false
+            };
+            
+            function toggleControlCenter(e) {
+                if (e) e.stopPropagation();
+                const cc = document.getElementById('control-center');
+                if (cc.style.display === 'none' || cc.style.display === '') {
+                    cc.style.display = 'flex';
+                } else {
+                    cc.style.display = 'none';
+                }
+            }
+            
+            document.addEventListener('click', (e) => {
+                const cc = document.getElementById('control-center');
+                const tray = document.getElementById('system-tray');
+                if (cc && cc.style.display === 'flex') {
+                    if (!cc.contains(e.target) && !tray.contains(e.target)) {
+                        cc.style.display = 'none';
+                    }
+                }
+            });
+
+            async function toggleCcWifi() {
+                if(ccState.ap) return;
+                ccState.wifi = !ccState.wifi;
+                updateCcUI();
+                if(typeof apiCommand === 'function') await apiCommand('wifi_toggle', { state: ccState.wifi }).catch(()=>null);
+            }
+            async function toggleCcBt() {
+                if(ccState.ap) return;
+                ccState.bt = !ccState.bt;
+                updateCcUI();
+                if(typeof apiCommand === 'function') await apiCommand('bt_toggle', { state: ccState.bt }).catch(()=>null);
+            }
+            async function toggleCcAp() {
+                ccState.ap = !ccState.ap;
+                if(ccState.ap) {
+                    ccState.wifi = false;
+                    ccState.bt = false;
+                } else {
+                    ccState.wifi = true;
+                }
+                updateCcUI();
+                if(typeof apiCommand === 'function') await apiCommand('ap_toggle', { state: ccState.ap }).catch(()=>null);
+            }
+            async function toggleCcDnd() {
+                ccState.dnd = !ccState.dnd;
+                updateCcUI();
+                if(typeof apiCommand === 'function') await apiCommand('dnd_toggle', { state: ccState.dnd }).catch(()=>null);
+            }
+            
+            let volTimeout;
+            function updateCcVol(val) {
+                let volClass = val == 0 ? 'fa-solid fa-volume-xmark' : (val < 50 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high');
+                document.getElementById('tray-vol-icon').className = volClass;
+                document.getElementById('cc-vol-icon').className = volClass;
+                clearTimeout(volTimeout);
+                volTimeout = setTimeout(async () => {
+                    if(typeof apiCommand === 'function') await apiCommand('vol_set', { level: parseInt(val) }).catch(()=>null);
+                }, 300);
+            }
+            
+            let brightTimeout;
+            function updateCcBright(val) {
+                clearTimeout(brightTimeout);
+                brightTimeout = setTimeout(async () => {
+                    if(typeof apiCommand === 'function') await apiCommand('bright_set', { level: parseInt(val) }).catch(()=>null);
+                }, 300);
+            }
+
+            function updateCcUI() {
+                const onBg = '#3b82f6';
+                const offBg = 'rgba(255, 255, 255, 0.1)';
+                
+                document.getElementById('cc-wifi-toggle').style.background = ccState.wifi ? onBg : offBg;
+                document.getElementById('cc-wifi-status').textContent = ccState.wifi ? 'On' : 'Off';
+                document.getElementById('tray-wifi-icon').style.opacity = ccState.wifi ? '1' : '0.3';
+                
+                document.getElementById('cc-bt-toggle').style.background = ccState.bt ? onBg : offBg;
+                document.getElementById('cc-bt-status').textContent = ccState.bt ? 'On' : 'Off';
+                
+                document.getElementById('cc-ap-toggle').style.background = ccState.ap ? onBg : offBg;
+                document.getElementById('cc-ap-status').textContent = ccState.ap ? 'On' : 'Off';
+                
+                // If aeroplane is ON, disable wifi and BT
+                if (ccState.ap) {
+                    document.getElementById('cc-wifi-toggle').style.opacity = '0.3';
+                    document.getElementById('cc-wifi-toggle').style.cursor = 'not-allowed';
+                    document.getElementById('cc-bt-toggle').style.opacity = '0.3';
+                    document.getElementById('cc-bt-toggle').style.cursor = 'not-allowed';
+                } else {
+                    document.getElementById('cc-wifi-toggle').style.opacity = '1';
+                    document.getElementById('cc-wifi-toggle').style.cursor = 'pointer';
+                    document.getElementById('cc-bt-toggle').style.opacity = '1';
+                    document.getElementById('cc-bt-toggle').style.cursor = 'pointer';
+                }
+                
+                document.getElementById('cc-dnd-toggle').style.background = ccState.dnd ? '#8b5cf6' : offBg; // Purple for DND
+                document.getElementById('cc-dnd-status').textContent = ccState.dnd ? 'On' : 'Off';
+            }
+            
+            // Initialize
+            setTimeout(updateCcUI, 500);
+        </script>
     </div>
 
     <!-- Bottom Desktop Taskbar / Dock -->
@@ -1363,10 +1723,11 @@
             <div id="latency-val" style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500;">
                 Ping: -- ms
             </div>
-            <!-- IP Address display -->
-            <div id="ip-badge" title="Your Public IP — click to copy" onclick="copyIpToClipboard()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;font-family:var(--font-mono);font-weight:600;color:var(--text-secondary);cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:3px 10px;transition:all 0.2s;" onmouseenter="this.style.color='#00e5ff';this.style.borderColor='rgba(0,229,255,0.3)'" onmouseleave="this.style.color='var(--text-secondary)';this.style.borderColor='rgba(255,255,255,0.07)'">
-                <i class="fa-solid fa-globe" style="font-size:0.65rem;"></i>
-                <span id="ip-val">fetching...</span>
+            <!-- System Tray Pill -->
+            <div id="system-tray" class="tray-pill" onclick="toggleControlCenter(event)" title="Control Center" style="display:flex;align-items:center;gap:12px;font-size:0.85rem;color:var(--text-secondary);cursor:pointer;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:4px 14px;transition:all 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.1)'" onmouseleave="this.style.background='rgba(255,255,255,0.06)'">
+                <div id="tray-wifi-icon" style="display:flex;align-items:center;position:relative;"><i class="fa-solid fa-wifi"></i></div>
+                <i class="fa-solid fa-volume-high" id="tray-vol-icon"></i>
+                <i class="fa-solid fa-battery-full" id="tray-bat-icon"></i>
             </div>
             <div class="clock" id="system-clock">10:59 AM</div>
         </div>
@@ -1951,7 +2312,10 @@
                             </div>
                             <div class="aws-form-group">
                                 <label>AWS Secret Access Key</label>
-                                <input type="password" id="aws-input-secret" placeholder="e.g. wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY">
+                                <form onsubmit="return false" style="margin:0; padding:0;">
+                                    <input type="text" autocomplete="username" style="display:none;" aria-hidden="true">
+                                    <input type="password" id="aws-input-secret" placeholder="e.g. wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" autocomplete="new-password">
+                                </form>
                             </div>
                             <div class="aws-form-group">
                                 <label>Default AWS Region</label>
@@ -2262,6 +2626,63 @@
             <div class="resize-handle" onmousedown="startResize(event, 'liae')"></div>
         </div><!-- /win-liae -->
 
+        <!-- QA Engine Window -->
+        <div class="window" id="win-qa" style="top: 150px; left: 150px; width: 1000px; height: 700px; z-index: 60; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'qa')">
+                <div class="window-title">
+                    <i class="fa-solid fa-vial" style="color: #10b981;"></i>
+                    <span>QA Automation Platform</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('qa')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('qa')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('qa')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; flex-direction: column;">
+                <iframe src="http://localhost:5173" style="width: 100%; height: 100%; border: none; background: #0b0f19;"></iframe>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'qa')"></div>
+        </div>
+
+        <!-- Wazuh Window -->
+        <div class="window" id="win-wazuh" style="top: 180px; left: 180px; width: 1100px; height: 750px; z-index: 60; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'wazuh')">
+                <div class="window-title">
+                    <i class="fa-solid fa-shield-halved" style="color: #3b82f6;"></i>
+                    <span>Wazuh SIEM</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('wazuh')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('wazuh')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('wazuh')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; flex-direction: column;">
+                <iframe src="http://localhost:5174" style="width: 100%; height: 100%; border: none; background: #0b0f19;"></iframe>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'wazuh')"></div>
+        </div>
+
+        <!-- Agenthoryx Cloud Window -->
+        <div class="window" id="win-hosting" style="top: 100px; left: 160px; width: 1024px; height: 768px; z-index: 79; display: none;">
+            <div class="window-header" onmousedown="startDrag(event, 'hosting')" style="background: #090d16; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <div class="window-title">
+                    <i class="fa-solid fa-cloud-bolt" style="color: #60a5fa; font-size: 1.1rem;"></i>
+                    <span style="font-weight: 600; letter-spacing: 0.3px;">Agenthoryx Cloud Console</span>
+                </div>
+                <div class="window-controls">
+                    <button class="win-btn win-min" onclick="minimizeWindow('hosting')" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+                    <button class="win-btn win-max" onclick="toggleMaximize('hosting')" title="Maximize"><i class="fa-solid fa-expand"></i></button>
+                    <button class="win-btn win-close" onclick="closeWindow('hosting')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="window-body" style="padding: 0; display: flex; height: calc(100% - 40px); overflow: hidden;">
+                <iframe id="hosting-iframe" src="" style="width: 100%; height: 100%; border: none; background: #030712;"></iframe>
+            </div>
+            <div class="resize-handle" onmousedown="startResize(event, 'hosting')"></div>
+        </div>
+
     <!-- Login Modal -->
     <div class="modal-overlay" id="login-modal" style="display: none; align-items: center; justify-content: center;">
         <div class="modal-card" style="max-width: 420px; width: 95%;">
@@ -2312,9 +2733,11 @@
         Saved successfully!
     </div>
 
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
     <script src="aws/app.js"></script>
     <script src="editor/app.js"></script>
     <script src="liae/app.js"></script>
+    <script src="spy/app.js"></script>
+    <script src="wifi/app.js"></script>
 </body>
 </html>

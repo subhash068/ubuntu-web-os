@@ -1,6 +1,8 @@
 // System State Elements
-const termInput = document.getElementById('term-input');
-const termBody = document.getElementById('terminal-body');
+let term = null;
+let fitAddon = null;
+let currentInputBuffer = '';
+let allTerminalLogs = '';
 const noteArea = document.getElementById('note-area');
 const toast = document.getElementById('toast');
 const connBadge = document.getElementById('conn-badge');
@@ -276,7 +278,12 @@ const windows = {
     kubernetes: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-dharmachakra', name: 'Kubernatives' },
     aws: { active: false, min: false, max: false, x: 220, y: 120, w: 900, h: 580, icon: 'fa-aws', name: 'AWS DevOps Console' },
     editor: { active: false, min: false, max: false, x: 140, y: 100, w: 860, h: 560, icon: 'fa-code', name: 'IDE Code Editor' },
-    liae: { active: false, min: false, max: false, x: 60, y: 60, w: 980, h: 580, icon: 'fa-dna', name: 'Autopsy Engine' }
+    liae: { active: false, min: false, max: false, x: 60, y: 60, w: 980, h: 580, icon: 'fa-dna', name: 'Autopsy Engine' },
+    spy: { active: false, min: false, max: false, x: 100, y: 100, w: 800, h: 500, icon: 'fa-user-secret', name: 'Spy Network' },
+    wifi: { active: false, min: false, max: false, x: 300, y: 200, w: 450, h: 550, icon: 'fa-wifi', name: 'Wi-Fi Manager' },
+    qa: { active: false, min: false, max: false, x: 150, y: 150, w: 1000, h: 700, icon: 'fa-vial', name: 'QA Engine' },
+    wazuh: { active: false, min: false, max: false, x: 180, y: 180, w: 1100, h: 750, icon: 'fa-shield-halved', name: 'Wazuh SIEM' },
+    hosting: { active: false, min: false, max: false, x: 100, y: 100, w: 1024, h: 768, icon: 'fa-server', name: 'Mini Hosting Platform' }
 };
 
 let highestZ = 100;
@@ -333,6 +340,10 @@ function openWindow(winId) {
         initKubernetesApp();
     } else if (winId === 'liae') {
         if (typeof LIAE !== 'undefined') setTimeout(() => LIAE.init(), 60);
+    } else if (winId === 'spy') {
+        if (typeof SPY !== 'undefined') setTimeout(() => SPY.init(), 60);
+    } else if (winId === 'hosting') {
+        initHostingApp();
     }
 }
 
@@ -504,6 +515,10 @@ function closeWindow(winId) {
     winEl.style.display = 'none';
     updateTaskbarBadges();
     saveSettings();
+
+    if (winId === 'spy' && typeof SPY !== 'undefined') {
+        SPY.stop();
+    }
 }
 
 // Drag functionality
@@ -516,19 +531,32 @@ function startDrag(e, winId) {
 
     const winEl = document.getElementById(`win-${winId}`);
     activeDrag = { id: winId, type: 'drag' };
-    dragStartX = e.clientX - winEl.offsetLeft;
-    dragStartY = e.clientY - winEl.offsetTop;
+    
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+    const clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+    
+    const currentLeft = parseFloat(winEl.style.left) || winEl.offsetLeft || 0;
+    const currentTop = parseFloat(winEl.style.top) || winEl.offsetTop || 0;
+    
+    dragStartX = clientX - currentLeft;
+    dragStartY = clientY - currentTop;
     
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('touchmove', handleDragMove, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    if (e.cancelable && e.type !== 'touchstart') e.preventDefault();
 }
 
 function handleDragMove(e) {
     if (!activeDrag || activeDrag.type !== 'drag') return;
     const winEl = document.getElementById(`win-${activeDrag.id}`);
     
-    const x = e.clientX - dragStartX;
-    const y = e.clientY - dragStartY;
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+    const clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+    
+    const x = clientX - dragStartX;
+    const y = clientY - dragStartY;
     
     winEl.style.left = `${x}px`;
     winEl.style.top = `${y}px`;
@@ -546,22 +574,31 @@ function startResize(e, winId) {
     
     const winEl = document.getElementById(`win-${winId}`);
     activeDrag = { id: winId, type: 'resize' };
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
+    
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+    const clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+    
+    dragStartX = clientX;
+    dragStartY = clientY;
     resizeStartW = winEl.clientWidth;
     resizeStartH = winEl.clientHeight;
     
     document.addEventListener('mousemove', handleResizeMove);
     document.addEventListener('mouseup', handleDragEnd);
-    e.preventDefault();
+    document.addEventListener('touchmove', handleResizeMove, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    if (e.cancelable && e.type !== 'touchstart') e.preventDefault();
 }
 
 function handleResizeMove(e) {
     if (!activeDrag || activeDrag.type !== 'resize') return;
     const winEl = document.getElementById(`win-${activeDrag.id}`);
     
-    const w = resizeStartW + (e.clientX - dragStartX);
-    const h = resizeStartH + (e.clientY - dragStartY);
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+    const clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+    
+    const w = resizeStartW + (clientX - dragStartX);
+    const h = resizeStartH + (clientY - dragStartY);
     
     const finalW = Math.max(w, 280);
     const finalH = Math.max(h, 200);
@@ -577,8 +614,11 @@ function handleDragEnd() {
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchmove', handleResizeMove);
+    document.removeEventListener('touchend', handleDragEnd);
     activeDrag = null;
-    saveSettings();
+    if (typeof saveSettings === 'function') saveSettings();
 }
 
 // Taskbar Indicators
@@ -733,7 +773,9 @@ function applyCustomWallpaper() {
 function setupWindowClickFocus() {
     Object.keys(windows).forEach(winId => {
         const el = document.getElementById(`win-${winId}`);
-        el.addEventListener('mousedown', () => focusWindow(winId));
+        if (el) {
+            el.addEventListener('mousedown', () => focusWindow(winId));
+        }
     });
 }
 
@@ -1476,65 +1518,111 @@ async function promptCreateFolder() {
 }
 
 // ================= Terminal Logic =================
-termInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const command = termInput.value.trim();
-        if (command) {
-            commandHistory.push(command);
-            historyIndex = commandHistory.length;
-            sendTerminalCommand(command);
-        }
-        termInput.value = '';
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (commandHistory.length > 0 && historyIndex > 0) {
-            historyIndex--;
-            termInput.value = commandHistory[historyIndex];
-        }
-    } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
-            historyIndex++;
-            termInput.value = commandHistory[historyIndex];
-        } else {
-            historyIndex = commandHistory.length;
-            termInput.value = '';
-        }
-    } else if (e.key === 'Tab') {
-        e.preventDefault();
-        const input = termInput.value;
-        const parts = input.split(' ');
-        const lastPart = parts[parts.length - 1];
-        
-        if (lastPart.length > 0) {
-            apiCommand('ls', { path: terminalPwd }).then(data => {
-                if (data.stdout) {
-                    const files = data.stdout.trim().split('\n').filter(l => l && l !== './' && l !== '../');
-                    const matches = files.filter(f => f.startsWith(lastPart));
-                    if (matches.length === 1) {
-                        parts[parts.length - 1] = matches[0];
-                        termInput.value = parts.join(' ');
-                    } else if (matches.length > 1) {
-                        printOutput(`<span class="prompt">root@ubuntu-24.04:${terminalPwd}$</span> ${input}`);
-                        printOutput(matches.join('  '));
-                    }
-                }
-            }).catch(() => {});
-        }
-    }
-});
-
 let terminalPwd = '~';
 
+function initTerminal() {
+    if (term) return;
+    const container = document.getElementById('xterm-container');
+    if (!container) return;
+    
+    term = new window.Terminal({
+        cursorBlink: true,
+        theme: {
+            background: '#1e1e1e',
+            foreground: '#ffffff',
+            cursor: '#ffffff'
+        },
+        fontFamily: '"Fira Code", monospace',
+        fontSize: 14
+    });
+    
+    fitAddon = new window.FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(container);
+    fitAddon.fit();
+    
+    // Write initial prompt
+    writePrompt();
+
+    term.onData(e => {
+        switch (e) {
+            case '\r': // Enter
+                term.write('\r\n');
+                const command = currentInputBuffer.trim();
+                currentInputBuffer = '';
+                if (command) {
+                    commandHistory.push(command);
+                    historyIndex = commandHistory.length;
+                    sendTerminalCommand(command);
+                } else {
+                    writePrompt();
+                }
+                break;
+            case '\u007F': // Backspace (DEL)
+                if (currentInputBuffer.length > 0) {
+                    currentInputBuffer = currentInputBuffer.substr(0, currentInputBuffer.length - 1);
+                    term.write('\b \b');
+                }
+                break;
+            case '\u0003': // Ctrl+C
+                term.write('^C\r\n');
+                currentInputBuffer = '';
+                writePrompt();
+                break;
+            case '\u001b[A': // Up arrow
+                if (commandHistory.length > 0 && historyIndex > 0) {
+                    while(currentInputBuffer.length > 0) {
+                        currentInputBuffer = currentInputBuffer.substr(0, currentInputBuffer.length - 1);
+                        term.write('\b \b');
+                    }
+                    historyIndex--;
+                    currentInputBuffer = commandHistory[historyIndex];
+                    term.write(currentInputBuffer);
+                }
+                break;
+            case '\u001b[B': // Down arrow
+                if (commandHistory.length > 0 && historyIndex < commandHistory.length) {
+                    while(currentInputBuffer.length > 0) {
+                        currentInputBuffer = currentInputBuffer.substr(0, currentInputBuffer.length - 1);
+                        term.write('\b \b');
+                    }
+                    historyIndex++;
+                    if (historyIndex === commandHistory.length) {
+                        currentInputBuffer = '';
+                    } else {
+                        currentInputBuffer = commandHistory[historyIndex];
+                        term.write(currentInputBuffer);
+                    }
+                }
+                break;
+            default: 
+                // Print all other printable characters
+                if (e >= String.fromCharCode(0x20) && e <= String.fromCharCode(0x7E) || e >= '\u00a0') {
+                    currentInputBuffer += e;
+                    term.write(e);
+                }
+        }
+    });
+}
+
+function writePrompt() {
+    if (!term) return;
+    term.write(`\x1b[1;32mroot@ubuntu-24.04\x1b[0m:\x1b[1;34m${terminalPwd}\x1b[0m$ `);
+}
+
+// Ensure resize is handled
+window.addEventListener('resize', () => {
+    if (fitAddon) fitAddon.fit();
+});
+
 async function sendTerminalCommand(command) {
+    allTerminalLogs += command + '\n';
     if (command.toLowerCase() === 'clear') {
-        termBody.innerHTML = '';
+        term.clear();
+        writePrompt();
         return;
     }
 
-    printOutput(`<span class="prompt">root@ubuntu-24.04:${terminalPwd}$</span> ${command}`);
-
-    // Wrap command to execute in current PWD, then print a delimiter and the new PWD
     const delimiter = "___PWD_END___";
     const execPwd = terminalPwd === '~' || terminalPwd.startsWith('~/') ? terminalPwd.replace('~', '/root') : terminalPwd;
     const wrappedCommand = `cd "${execPwd}" && eval '${command.replace(/'/g, "'\\''")}'\necho "${delimiter}"\npwd`;
@@ -1599,70 +1687,38 @@ async function sendTerminalCommand(command) {
             terminalPwd = newPwd;
         }
 
-        // Update the visual prompt for the next input
-        const promptLabel = document.getElementById('prompt-label');
-        if (promptLabel) {
-            promptLabel.textContent = `root@ubuntu-24.04:${terminalPwd}$`;
-        }
-
+        writePrompt();
         refreshFiles();
     } catch (e) {
         printOutput(`Error: ${e.message}`, 'stderr-msg');
+        writePrompt();
     }
 }
 
 function printOutput(text, className = '') {
-    const div = document.createElement('div');
-    div.style.whiteSpace = 'pre-wrap';
-    div.style.wordBreak = 'break-all';
-    if (className) {
-        div.className = className;
-    }
+    if (!term) return;
     
+    let cleanText = text;
+    if (text.includes('<span class="prompt">')) return; 
+    
+    cleanText = cleanText.replace(/<[^>]*>?/gm, '');
+    allTerminalLogs += cleanText + '\n';
+
     if (className === 'stderr-msg') {
-        div.style.color = '#ef4444';
+        cleanText = `\x1b[31m${cleanText}\x1b[0m`;
     } else if (className === 'system-msg') {
-        div.style.color = '#a78bfa';
+        cleanText = `\x1b[35m${cleanText}\x1b[0m`;
     }
 
-    let parsedText = text.replace(/\x1b\[([0-9;]*)m/g, (match, codes) => {
-        if (codes === '0' || codes === '00' || codes === '') return '</span>';
-        let style = '';
-        const c = codes.split(';');
-        for (const code of c) {
-            if (code == '31') style += 'color: #ef4444; ';
-            else if (code == '32') style += 'color: #22c55e; ';
-            else if (code == '33') style += 'color: #eab308; ';
-            else if (code == '34') style += 'color: #3b82f6; ';
-            else if (code == '35') style += 'color: #a855f7; ';
-            else if (code == '36') style += 'color: #06b6d4; ';
-            else if (code == '37') style += 'color: #e5e5e5; ';
-            else if (code == '30') style += 'color: #1a1a2e; ';
-            else if (code == '1') style += 'font-weight: bold; ';
-            else if (code == '7') style += 'background: #e5e5e5; color: #1a1a2e; ';
-            else if (code == '27') style += 'background: transparent; color: inherit; ';
-            else if (code == '40') style += 'background: #1a1a2e; ';
-            else if (code == '41') style += 'background: #ef4444; ';
-            else if (code == '42') style += 'background: #22c55e; ';
-            else if (code == '43') style += 'background: #eab308; ';
-            else if (code == '44') style += 'background: #3b82f6; ';
-            else if (code == '45') style += 'background: #a855f7; ';
-            else if (code == '46') style += 'background: #06b6d4; ';
-            else if (code == '47') style += 'background: #e5e5e5; ';
-        }
-        return style ? `<span style="${style}">` : '<span>';
-    });
-
-    div.innerHTML = parsedText.replace(/\n/g, '<br>');
-    termBody.appendChild(div);
-    termBody.scrollTop = termBody.scrollHeight;
+    term.write(cleanText + '\r\n');
 }
 
 // Notes Logic
 async function fetchWithRetry(url, options, maxRetries = 3) {
+    const fullUrl = url.startsWith('/') ? `${BACKEND_URL}${url}` : url;
     for (let i = 0; i < maxRetries; i++) {
         try {
-            const res = await fetch(url, options);
+            const res = await fetch(fullUrl, options);
             if (res.ok) return res;
             if (res.status >= 500 && i < maxRetries - 1) {
                 await new Promise(r => setTimeout(r, 500 * (i + 1)));
@@ -1760,9 +1816,10 @@ function hideContextMenu() {
 // Launch system
 // Launch system
 window.onload = async () => {
+    initTerminal();
     // Load notes from DB
     try {
-        const notesRes = await fetch('/api/db/notes');
+        const notesRes = await fetch(`${BACKEND_URL}/api/db/notes`);
         if (notesRes.ok) {
             const data = await notesRes.json();
             if (data.content) {
@@ -1775,7 +1832,7 @@ window.onload = async () => {
     
     // Load settings from DB
     try {
-        const setRes = await fetch('/api/db/settings');
+        const setRes = await fetch(`${BACKEND_URL}/api/db/settings`);
         if (setRes.ok) {
             const data = await setRes.json();
             if (data.settings && Object.keys(data.settings).length > 0) {
@@ -2055,8 +2112,7 @@ async function refreshTunnels() {
         }
         
         const activeTunnels = [];
-        const termBody = document.getElementById('terminal-body');
-        const termText = termBody ? termBody.innerText : '';
+        const termText = allTerminalLogs;
         
         sshTunnels.forEach(tunnel => {
             const matchingServer = serverProcesses.find(s => s.port === tunnel.port);
@@ -4816,6 +4872,18 @@ async function handleK8sCli(event) {
                 outputEl.scrollTop = outputEl.scrollHeight;
             }, 200);
         }
+    }
+}
+
+// ================= Agenthoryx Cloud Hosting App Controller =================
+let hostingInitialized = false;
+
+function initHostingApp() {
+    if (hostingInitialized) return;
+    hostingInitialized = true;
+    const iframe = document.getElementById('hosting-iframe');
+    if (iframe) {
+        iframe.src = 'http://localhost:5173/';
     }
 }
 

@@ -1,0 +1,32 @@
+You can test the server by running this in your terminal:
+
+cd d:\ubuntu-web-os\mini-hosting-platform\backend
+go run main.go
+
+
+And in a separate terminal, you can run the client example:
+
+cd d:\ubuntu-web-os\mini-hosting-platform\backend
+go run client_example\main.go
+
+
+Start the Go Backend Engine:
+
+bash
+
+cd d:\ubuntu-web-os\mini-hosting-platform\backend
+go run main.go
+Start the React Dashboard: Open a new terminal.
+
+cd d:\ubuntu-web-os\mini-hosting-platform\frontend
+npm install
+npm run dev
+Enjoy the UI: Open http://localhost:5173 in your browser. Type a domain like test.com into the input field and hit Deploy. You'll instantly see the deployment show up in the Active Deployments grid and the backend logs stream into the Live Feed window as the Docker container boots up!
+
+
+
+go build -o main.exe main.go
+./main.exe
+
+go build -o /tmp/server.exe main.go
+

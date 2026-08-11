@@ -1,0 +1,1 @@
+mv d:\ubuntu-web-os\wifi_connector\wifi_connector.go d:\ubuntu-web-os\wifi_scanner\wifi_connector.go; rm -r d:\ubuntu-web-os\wifi_connector; cd d:\ubuntu-web-os\wifi_scanner; go build wifi_connector.go

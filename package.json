@@ -1,0 +1,23 @@
+{
+  "name": "ubuntu-web-os",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/subhash068/ubuntu-web-os.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/subhash068/ubuntu-web-os/issues"
+  },
+  "homepage": "https://github.com/subhash068/ubuntu-web-os#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
+  }
+}

@@ -1,0 +1,15 @@
+
+How to Run
+Start the simulated backend: Open a terminal and run:
+
+cd d:\ubuntu-web-os\wazuh-siem
+npm run server
+This will start the Express server on http://localhost:3002.
+
+Start the frontend application: In a separate terminal, run:
+
+cd d:\ubuntu-web-os\wazuh-siem
+npm run dev -- --port 5174
+This will run Vite on port 5174 which is where the Web OS expects it.
+
+Launch from Web OS: Double-click the "Wazuh SIEM" desktop icon in your Ubuntu Web OS to see it in action!

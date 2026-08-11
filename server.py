@@ -485,6 +485,151 @@ def execute_allowed(op: str, args: dict):
             'truncated_stdout': stdout_trunc,
             'truncated_stderr': stderr_trunc
         }
+    elif op == 'wifi_connect':
+        ssid = args.get('ssid')
+        password = args.get('password', '')
+        if not ssid:
+            raise ValueError('Missing ssid')
+        
+        import os, subprocess, platform, json
+        exe_ext = '.exe' if platform.system() == 'Windows' else ''
+        exe_path = os.path.join(os.path.dirname(__file__), 'wifi_scanner', 'wifi' + exe_ext)
+        
+        cmd = [exe_path, '--connect', ssid]
+        if password:
+            cmd.extend(['--password', password])
+            
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return {
+                'stdout': res.stdout,
+                'stderr': res.stderr,
+                'exit_code': res.returncode,
+                'truncated_stdout': False,
+                'truncated_stderr': False
+            }
+        except Exception as e:
+            return {
+                'stdout': '',
+                'stderr': str(e),
+                'exit_code': 1,
+                'truncated_stdout': False,
+                'truncated_stderr': False
+            }
+    elif op == 'wifi_details':
+        import platform, subprocess
+        details = {'success': False}
+        try:
+            if platform.system() == 'Windows':
+                res = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, text=True, timeout=15)
+                if res.returncode == 0:
+                    info = {}
+                    for line in res.stdout.split('\n'):
+                        line = line.strip()
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            key = parts[0].strip()
+                            val = parts[1].strip()
+                            if key and val:
+                                info[key] = val
+                    if info.get('State') == 'connected':
+                        details = {
+                            'success': True,
+                            'ssid': info.get('SSID', 'Unknown'),
+                            'bssid': info.get('BSSID', 'Unknown'),
+                            'radio': info.get('Radio type', 'Unknown'),
+                            'band': info.get('Band', 'Unknown'),
+                            'channel': info.get('Channel', 'Unknown'),
+                            'receive_rate': info.get('Receive rate (Mbps)', 'Unknown'),
+                            'transmit_rate': info.get('Transmit rate (Mbps)', 'Unknown'),
+                            'signal': info.get('Signal', 'Unknown')
+                        }
+            else:
+                res = subprocess.run(['nmcli', '-t', '-f', 'ACTIVE,SSID,BSSID,FREQ,BITRATE,SIGNAL', 'dev', 'wifi'], capture_output=True, text=True, timeout=15)
+                if res.returncode == 0:
+                    for line in res.stdout.split('\n'):
+                        parts = line.strip().split(':')
+                        if len(parts) >= 6 and parts[0] == 'yes':
+                            details = {
+                                'success': True,
+                                'ssid': parts[1],
+                                'bssid': parts[2],
+                                'radio': 'Unknown',
+                                'band': parts[3],
+                                'channel': 'Unknown',
+                                'receive_rate': parts[4],
+                                'transmit_rate': parts[4],
+                                'signal': parts[5] + '%'
+                            }
+                            break
+        except Exception as e:
+            details['error'] = str(e)
+            
+        import json
+        return {
+            'stdout': json.dumps(details),
+            'stderr': '',
+            'exit_code': 0,
+            'truncated_stdout': False,
+            'truncated_stderr': False
+        }
+    elif op == 'wifi_scan':
+        import os, subprocess, platform, json
+        networks = []
+        exe_ext = '.exe' if platform.system() == 'Windows' else ''
+        exe_path = os.path.join(os.path.dirname(__file__), 'wifi_scanner', 'wifi' + exe_ext)
+        try:
+            res = subprocess.run([exe_path, '--scan'], capture_output=True, text=True, timeout=15)
+            if res.returncode == 0:
+                networks = json.loads(res.stdout)
+        except Exception:
+            pass
+
+        if not networks:
+            # Fallback to simulated dynamic Wi-Fi environment if no hardware is present
+            import random, time
+            # Use current time to make signal strengths fluctuate every 5 seconds
+            seed = int(time.time() / 5)
+            r = random.Random(seed)
+            
+            base_networks = [
+                {'ssid': 'Starbucks WiFi', 'sec': 'Open'},
+                {'ssid': 'Xfinity Public', 'sec': 'Open'},
+                {'ssid': 'Home_Network_5G', 'sec': 'WPA3'},
+                {'ssid': 'Guest-Network', 'sec': 'WPA2'},
+                {'ssid': 'TP-Link_Extender', 'sec': 'WPA2'},
+                {'ssid': 'Pixel_Hotspot', 'sec': 'WPA3'},
+                {'ssid': 'FBI_Surveillance_Van_4', 'sec': 'WPA2'},
+                {'ssid': 'NETGEAR-5G', 'sec': 'WPA2'},
+                {'ssid': 'HackMeIfYouCan', 'sec': 'WEP'}
+            ]
+            
+            # Randomly pick 5-8 networks that are "in range" right now
+            num_nets = r.randint(5, 8)
+            selected = r.sample(base_networks, num_nets)
+            
+            for net in selected:
+                net['id'] = "sim_" + "".join(c for c in net['ssid'] if c.isalnum())
+                net['strength'] = r.randint(1, 4)
+                net['connected'] = False
+            networks = selected
+
+        return {
+            'stdout': json.dumps(networks),
+            'stderr': '',
+            'exit_code': 0,
+            'truncated_stdout': False,
+            'truncated_stderr': False
+        }
+    elif op in ('wifi_toggle', 'bt_toggle', 'ap_toggle', 'dnd_toggle', 'vol_set', 'bright_set'):
+        import json
+        return {
+            'stdout': json.dumps({'success': True}),
+            'stderr': '',
+            'exit_code': 0,
+            'truncated_stdout': False,
+            'truncated_stderr': False
+        }
     else:
         raise ValueError('Unsupported Operation!#!')
 
@@ -893,8 +1038,13 @@ class UbuntuOSHandler(SimpleHTTPRequestHandler):
                 _json_response(self, 400, {'error': str(e)})
             except subprocess.TimeoutExpired:
                 _json_response(self, 408, {'stdout': '', 'stderr': 'Error: command timed out', 'exit_code': -1})
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                pass # Client disconnected before response could be sent
             except Exception as e:
-                _json_response(self, 500, {'stdout': '', 'stderr': f'Error: {str(e)}', 'exit_code': -2})
+                try:
+                    _json_response(self, 500, {'stdout': '', 'stderr': f'Error: {str(e)}', 'exit_code': -2})
+                except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                    pass
             return
 
         # Command Stream endpoint
