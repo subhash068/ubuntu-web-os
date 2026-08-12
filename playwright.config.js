@@ -20,11 +20,19 @@ module.exports = defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5000',
+    baseURL: 'http://localhost:9500',
 
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+  },
+
+  /* Run local dev server before starting the tests */
+  webServer: {
+    command: 'uvicorn backend.api.main:app --port 9500',
+    port: 9500,
+    reuseExistingServer: !process.env.CI,
+    timeout: 60 * 1000,
   },
 
   /* Configure projects for major browsers */

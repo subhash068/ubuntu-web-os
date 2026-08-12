@@ -8,23 +8,68 @@ services:
     ports:
       - "9500:9500"
     environment:
-      - OS_WEBOS_SESSION_SECRET=${OS_WEBOS_SESSION_SECRET:-prod-secret-session-key-change-me}
+      - DATABASE_URL=postgresql://postgres:manager@postgres:5432/ubuntu_web_os
+      - OS_WEBOS_SESSION_SECRET=${OS_WEBOS_SESSION_SECRET:-dev-change-me-secure-secret-key-123}
       - OS_WEBOS_USER=${OS_WEBOS_USER:-admin}
       - OS_WEBOS_PASS=${OS_WEBOS_PASS:-admin}
       - OS_WEBOS_ALLOWED_ORIGIN=${OS_WEBOS_ALLOWED_ORIGIN:-}
       - OS_WEBOS_RATE_LIMIT_MAX=300
-    security_opt:
-      - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          memory: 128M
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9500/"]
+      test: ["CMD", "curl", "-f", "http://localhost:9500/api/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: webos-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=manager
+      - POSTGRES_DB=ubuntu_web_os
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: webos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: webos-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/docker/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: webos-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:

@@ -7,6 +7,7 @@ test.describe('Desktop Environment UI Tests', () => {
   test.beforeEach(async ({ page }) => {
     desktop = new DesktopPage(page);
     await desktop.goto();
+    await desktop.login('kali', 'kali');
   });
 
   test('should load the desktop and shortcuts', async ({ page }) => {

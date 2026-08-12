@@ -17,12 +17,20 @@ class DesktopPage {
     await this.page.goto('/');
   }
 
+  async login(username, password) {
+    await this.page.fill('#login-username', username);
+    await this.page.fill('#login-password', password);
+    await this.page.click('button[type="submit"]:has-text("Login")');
+    // Wait for the modal to be hidden after successful authentication
+    await this.page.waitForSelector('#login-modal', { state: 'hidden' });
+  }
+
   async openCalculator() {
-    await this.calculatorShortcut.dblclick();
+    await this.calculatorShortcut.evaluate(el => el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
   }
 
   async openTerminal() {
-    await this.terminalShortcut.dblclick();
+    await this.terminalShortcut.evaluate(el => el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
   }
 
   async closeWindow(windowId) {
